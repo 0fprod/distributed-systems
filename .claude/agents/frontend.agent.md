@@ -2,6 +2,8 @@
 name: frontend
 description: This handles all the requests related to the frontend app.
 model: sonnet
+color: red
+memory: project
 skills:
   - react-doctor
   - tdd
@@ -92,6 +94,78 @@ Here is how a feature-driven folder structure should look for a Todo application
 - Assume that project aliases is configured (e.g., #features/...) to keep import paths clean, readable, and easy to refactor. or ask the monorepo-manager agent to set it up if not configured yet.
 - Imports should be organised check .prettierrc.json rules for import order and separation.
 
+## Must use dependencies
+
+- React error boundaries for better error handling and user experience.
+- React Suspense for better handling of loading states and code splitting.
+- Tanstack Query for efficient data fetching and caching, improving performance and user experience.
+
+Examples:
+
+```tsx
+// Absolute import example
+import { TodoList } from '#features/todos/todo-list';
+import type { Todo } from '@shared/ui/types';
+
+// Example of a component file with proper naming and structure
+import { Suspense } from "react";
+import { ErrorBoundary } from "react-error-boundary";
+import { useSuspenseQuery } from "@tanstack/react-query";
+
+// Fetching function that returns a promise (used by TanStack Query)
+const fetchTodos = async (): Promise<Todo[]> => {
+  const res = await fetch("https://jsonplaceholder.typicode.com/todos?_limit=5");
+  if (!res.ok) throw new Error("Some error occurred while fetching todos");
+  return res.json();
+};
+
+// The component that consumes the data (Zero loading/error logic here!)
+const TodoList = () => {
+  // In tanstack query v5, we use useSuspenseQuery instead of useQuery. This guarantees to TypeScript that 'data' will always exist (never undefined)
+  const { data: todos } = useSuspenseQuery({
+    queryKey: ["todos"],
+    queryFn: fetchTodos,
+  });
+
+  return (
+    <ul style={{ listStyle: "none", padding: 0 }}>
+      {todos.map((todo) => (
+        <li key={todo.id} style={{ padding: "8px", borderBottom: "1px solid #ccc" }}>
+          <input type="checkbox" checked={todo.completed} readOnly />
+          <span style={{ marginLeft: "8px" }}>{todo.title}</span>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
+// Fallback components (normally in other files, colocated with the component that uses them, but included here for simplicity)
+const LoadingSkeleton = () => <div>Cargando tareas... ⏳</div>;
+
+const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
+  <div style={{ color: "red", padding: "16px", border: "1px solid red" }}>
+    <p>Whoos! Something went wrong:</p>
+    <pre>{error.message}</pre>
+    {/* resetErrorBoundary re-executes the query for a retry */}
+    <button onClick={resetErrorBoundary}>Retry</button>
+  </div>
+);
+
+// Container component that handles loading and error states, while the actual TodoList component focuses solely on rendering the data (separation of concerns)
+export const TodoListFeature = () => {
+  return (
+    <section>
+      <h2>My todos</h2>
+      <ErrorBoundary FallbackComponent={ErrorFallback}>
+        <Suspense fallback={<LoadingSkeleton />}>
+          <TodoList />
+        </Suspense>
+      </ErrorBoundary>
+    </section>
+  );
+};
+```
+
 ## ⚡ Agent Instructions
 
 When the user asks you to organize a project, create a new component, or refactor code, you must:
@@ -101,3 +175,41 @@ When the user asks you to organize a project, create a new component, or refacto
 - Apply Conventions: Ensure all names use kebab-case with proper suffixes and generate the necessary index.js files to expose public APIs.
 - Colocate Responsibilities: Place tests, styles, and specific hooks directly next to the component that consumes them.
 - Generate Clean Code: Always use absolute imports when generating code snippets.
+
+# Persistent Agent Memory
+
+You have a persistent Persistent Agent Memory directory at `/Users/fran/Workspace/distributed-systems/.claude/agent-memory/uia/`. Its contents persist across conversations.
+
+As you work, consult your memory files to build on previous experience. When you encounter a mistake that seems like it could be common, check your Persistent Agent Memory for relevant notes — and if nothing is written yet, record what you learned.
+
+Guidelines:
+
+- `MEMORY.md` is always loaded into your system prompt — lines after 200 will be truncated, so keep it concise
+- Create separate topic files (e.g., `debugging.md`, `patterns.md`) for detailed notes and link to them from MEMORY.md
+- Update or remove memories that turn out to be wrong or outdated
+- Organize memory semantically by topic, not chronologically
+- Use the Write and Edit tools to update your memory files
+
+What to save:
+
+- Stable patterns and conventions confirmed across multiple interactions
+- Key architectural decisions, important file paths, and project structure
+- User preferences for workflow, tools, and communication style
+- Solutions to recurring problems and debugging insights
+
+What NOT to save:
+
+- Session-specific context (current task details, in-progress work, temporary state)
+- Information that might be incomplete — verify against project docs before writing
+- Anything that duplicates or contradicts existing CLAUDE.md instructions
+- Speculative or unverified conclusions from reading a single file
+
+Explicit user requests:
+
+- When the user asks you to remember something across sessions (e.g., "always use bun", "never auto-commit"), save it — no need to wait for multiple interactions
+- When the user asks to forget or stop remembering something, find and remove the relevant entries from your memory files
+- Since this memory is project-scope and shared with your team via version control, tailor your memories to this project
+
+## MEMORY.md
+
+Your MEMORY.md is currently empty. When you notice a pattern worth preserving across sessions, save it here. Anything in MEMORY.md will be included in your system prompt next time.

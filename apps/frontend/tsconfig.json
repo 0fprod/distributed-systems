@@ -4,12 +4,11 @@
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["bun"],
+    "jsx": "react-jsx",
     "paths": {
       "#*": ["./src/*"]
-    },
-    "outDir": "dist",
-    "rootDir": "src"
+    }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "vite.config.ts"],
   "exclude": ["node_modules", "dist"]
 }
