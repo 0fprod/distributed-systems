@@ -128,6 +128,7 @@ Always include the following in the root `package.json` devDependencies:
 - `"knip"` — NOT `"knit"` (knit is a completely different, unrelated package)
 - `"@types/bun": "latest"` — NOT `"bun-types"` (bun-types is the old/deprecated package; @types/bun is correct since Bun 1.x). In `devDependencies` the package is `"@types/bun"`, but in `tsconfig.json` `"types"` array use the bare name `"bun"` (TypeScript strips the `@types/` prefix when resolving the array — `"types": ["bun"]` → `node_modules/@types/bun`. Using `"types": ["@types/bun"]` would try to resolve `node_modules/@types/@types/bun` which does not exist.)
 - `"@commitlint/cli"`, `"@commitlint/config-conventional"`, AND `"@commitlint/types"` — all three are required when writing `commitlint.config.ts` in TypeScript; omitting `@commitlint/types` causes knip to report it as an unlisted dependency
+- `"@trivago/prettier-plugin-sort-imports": "^4.3.0"` — required for enforcing a consistent import order across all source files (see "Import sorting" below)
 
 ### TypeScript configuration for Bun
 
@@ -162,6 +163,38 @@ When creating Husky hook files, always use `bun` and `bunx` — never `npx`:
   ```sh
   bun test
   ```
+
+### Import sorting
+
+`@trivago/prettier-plugin-sort-imports` MUST be installed and configured in every monorepo setup. It enforces a consistent, deterministic import order across all TypeScript files and is applied automatically on every `bun run format` run.
+
+Install it as a root devDependency:
+
+```json
+"@trivago/prettier-plugin-sort-imports": "^4.3.0"
+```
+
+Configure it in `.prettierrc.json` alongside the existing Prettier options. The import groups must follow this exact ordering, with blank lines separating each group:
+
+```json
+{
+  "plugins": ["@trivago/prettier-plugin-sort-imports"],
+  "importOrder": ["<THIRD_PARTY_MODULES>", "^@distributed-systems/(.*)$", "^#(.*)$", "^[./]"],
+  "importOrderSeparation": true,
+  "importOrderSortSpecifiers": true
+}
+```
+
+Group breakdown:
+
+- Group 1 (`<THIRD_PARTY_MODULES>`): Node.js built-ins (e.g. `node:fs`, `bun:test`) and npm packages
+- Group 2 (`^@distributed-systems/(.*)$`): Internal workspace packages
+- Group 3 (`^#(.*)$`): Intra-package `#` path alias imports (e.g. `#features/someHook`)
+- Group 4 (`^[./]`): Relative imports (`./` and `../`)
+
+Each group is separated from the next by a blank line in the output. Within each group, named specifiers are sorted alphabetically (`importOrderSortSpecifiers: true`).
+
+Do NOT use `^@trivago/prettier-plugin-sort-imports` version 5.x or 6.x — they introduce optional peer dependencies on Vue, Svelte, and Ember that are not relevant for a TypeScript-only monorepo. Version `^4.3.0` is the correct pinned range.
 
 ### Import aliases
 

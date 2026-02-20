@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+
 import { greet } from "@distributed-systems/shared";
 
 describe("frontend", () => {
