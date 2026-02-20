@@ -94,6 +94,11 @@ Here is how a feature-driven folder structure should look for a Todo application
 - Assume that project aliases is configured (e.g., #features/...) to keep import paths clean, readable, and easy to refactor. or ask the monorepo-manager agent to set it up if not configured yet.
 - Imports should be organised check .prettierrc.json rules for import order and separation.
 
+## Testing with bun
+
+- Use bun's built-in test runner for all testing needs.
+- Read the docs for proper configuration https://bun.com/docs/guides/test/testing-library
+
 ## Must use dependencies
 
 - React error boundaries for better error handling and user experience.
