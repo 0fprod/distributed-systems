@@ -1,11 +1,10 @@
-import { GenerateInvoiceForm } from "#features/invoice/generate-invoice-form";
-import { InvoiceList } from "#features/invoice/invoice-list";
+import { GenerateInvoiceForm, InvoiceListFeature } from "#features/invoice";
 
 export function HomePage() {
   return (
-    <div>
+    <div className="space-y-8">
       <GenerateInvoiceForm />
-      <InvoiceList />
+      <InvoiceListFeature />
     </div>
   );
 }

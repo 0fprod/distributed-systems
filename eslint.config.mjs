@@ -45,4 +45,13 @@ export default defineConfig(
       "react/prop-types": "off",
     },
   },
+  {
+    // Declaration files use module augmentation patterns that trigger false positives
+    // This must come last so it overrides the generic *.ts rules above
+    files: ["**/*.d.ts"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-empty-object-type": "off",
+    },
+  },
 );
