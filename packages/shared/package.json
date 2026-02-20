@@ -1,0 +1,20 @@
+{
+  "name": "@distributed-systems/shared",
+  "version": "1.0.0",
+  "type": "module",
+  "imports": {
+    "#*": "./src/*"
+  },
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  }
+}
