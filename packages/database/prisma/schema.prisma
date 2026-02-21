@@ -1,0 +1,32 @@
+// Prisma schema for the distributed-systems monorepo.
+// SQLite is used for simplicity — no external DB required.
+// The generated client is consumed by both apps/backend and apps/worker
+// via the @distributed-systems/database workspace package.
+
+generator client {
+  provider = "prisma-client-js"
+  // Output inside the package's src tree so TypeScript can resolve the types
+  // directly without relying on the @prisma/client symlink mechanism
+  // (which Bun does not create automatically).
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "sqlite"
+  // Path is relative to the prisma/ directory at schema resolution time.
+  // The dev.db file sits at the packages/database root.
+  url      = env("DATABASE_URL")
+}
+
+model Invoice {
+  id        Int      @id @default(autoincrement())
+  name      String
+  amount    Float
+  // Mirrors the InvoiceStatus union in @distributed-systems/shared.
+  // "pending"    = created, waiting in the queue
+  // "inprogress" = worker is actively processing it
+  // "completed"  = worker finished generating the PDF
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
