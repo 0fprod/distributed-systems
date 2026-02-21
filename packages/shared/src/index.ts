@@ -4,7 +4,13 @@ export function greet(name: string): string {
 
 export type AppName = "frontend" | "backend" | "worker";
 
-export type InvoiceStatus = "inprogress" | "completed";
+export const InvoiceStatus = {
+  PENDING: "pending",
+  INPROGRESS: "inprogress",
+  COMPLETED: "completed",
+} as const;
+
+export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
 
 export interface Invoice {
   id: number;
@@ -12,3 +18,19 @@ export interface Invoice {
   amount: number;
   status: InvoiceStatus;
 }
+
+export const ApiRoutes = {
+  INVOICES: "/invoices",
+  WS: "/ws",
+} as const;
+
+export const InvoiceExchanges = {
+  CREATED: "invoices.created",
+  COMPLETED: "invoices.completed",
+} as const;
+
+export const InvoiceEvents = {
+  COMPLETED: "invoice:completed",
+} as const;
+
+export { processFakeInvoice, sleep } from "./utils";
