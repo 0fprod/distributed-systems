@@ -9,15 +9,18 @@
   ],
   "scripts": {
     "prepare": "husky",
-    "build": "bun run --filter '*' build",
     "dev": "bun run --filter '*' dev",
-    "test": "bun run --filter '*' test",
+    "build": "bun run --filter '*' build",
+    "typecheck": "bun run --filter '*' typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "bun run --filter '*' typecheck",
-    "knip": "knip"
+    "knip": "knip",
+    "test": "bun run --filter '*' test",
+    "db:generate": "bun run --filter '@distributed-systems/database' db:generate",
+    "db:push": "bun run --filter '@distributed-systems/database' db:push",
+    "db:setup": "bun run db:generate && bun run db:push"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.8.0",

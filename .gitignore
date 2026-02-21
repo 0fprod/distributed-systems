@@ -41,3 +41,12 @@ coverage
 
 # TypeScript
 *.tsbuildinfo
+
+# Prisma
+packages/database/src/generated/
+
+# SQLite
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

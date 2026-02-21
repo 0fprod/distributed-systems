@@ -8,7 +8,15 @@ import tseslint from "typescript-eslint";
 
 export default defineConfig(
   {
-    ignores: ["**/node_modules/**", "**/dist/**", "**/.turbo/**", "**/coverage/**", "**/*.min.js"],
+    ignores: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.turbo/**",
+      "**/coverage/**",
+      "**/*.min.js",
+      // Prisma generates JS/TS files that do not conform to our ESLint rules
+      "**/src/generated/**",
+    ],
   },
   eslint.configs.recommended,
   tseslint.configs.recommended,

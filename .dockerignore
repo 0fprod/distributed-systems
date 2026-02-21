@@ -1,0 +1,36 @@
+# Dependencies (installed fresh inside the image)
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+**/dist
+
+# Version control
+.git
+.gitignore
+
+# SQLite database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Prisma generated client (regenerated during image build)
+packages/database/src/generated/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Editor and OS artifacts
+.DS_Store
+*.swp
+*.swo
+.vscode
+.idea
+
+# Docker files (not needed inside the image)
+docker-compose.yml
+docker-compose.*.yml
