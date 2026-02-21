@@ -1,5 +1,5 @@
-import { greet } from "@distributed-systems/shared";
+import { startInvoiceCreatedConsumer } from "#modules/invoicing/infrastructure/messaging/invoice-created.consumer";
 
-const message = greet("worker");
+await startInvoiceCreatedConsumer();
 
-console.log(message);
+console.log("[worker] started — consuming invoices.created");

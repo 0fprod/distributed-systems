@@ -9,10 +9,14 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
-    "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "start": "bun run dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
-    "@distributed-systems/shared": "workspace:*"
+    "@distributed-systems/database": "workspace:*",
+    "@distributed-systems/shared": "workspace:*",
+    "@types/amqplib": "^0.10.8",
+    "amqplib": "^0.10.9"
   }
 }
