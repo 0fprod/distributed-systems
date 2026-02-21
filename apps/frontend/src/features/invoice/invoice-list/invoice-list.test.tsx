@@ -39,6 +39,7 @@ test("renders invoice rows when data resolves", async () => {
   const invoices: Invoice[] = [
     { id: 1, name: "Acme Corp", amount: 1200, status: "completed" },
     { id: 2, name: "Globex Inc", amount: 450, status: "inprogress" },
+    { id: 3, name: "Stark Industries", amount: 9800, status: "pending" },
   ];
 
   const { fetchInvoices } = await import("./use-invoices.hook");
@@ -50,8 +51,10 @@ test("renders invoice rows when data resolves", async () => {
   await waitFor(() => {
     expect(screen.getByText("Acme Corp")).toBeDefined();
     expect(screen.getByText("Globex Inc")).toBeDefined();
-    expect(screen.getByText("completed")).toBeDefined();
-    expect(screen.getByText("inprogress")).toBeDefined();
+    expect(screen.getByText("Stark Industries")).toBeDefined();
+    expect(screen.getByTestId("status-badge-completed")).toBeDefined();
+    expect(screen.getByTestId("status-badge-inprogress")).toBeDefined();
+    expect(screen.getByTestId("status-badge-pending")).toBeDefined();
   });
 });
 
