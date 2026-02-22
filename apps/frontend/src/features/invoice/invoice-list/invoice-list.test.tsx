@@ -1,36 +1,35 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, mock, test } from "bun:test";
+import { beforeEach, expect, mock, spyOn, test } from "bun:test";
 
 import type { Invoice } from "@distributed-systems/shared";
 
+import { httpError, httpOk } from "#test/http-helpers.js";
+import { makeClient, makeWrapper } from "#test/query-helpers.js";
+import { makeFakeWebSocket } from "#test/websocket-helpers";
+
 import { InvoiceListFeature } from "./invoice-list.feature";
 
-mock.module("./use-invoices.hook", () => ({
-  fetchInvoices: mock(() => Promise.resolve([])),
+mock.module("#shared/websocket", () => ({
+  createWebSocket: mock(() => makeFakeWebSocket()),
+}));
+const requestMock = mock();
+
+mock.module("#shared/request", () => ({
+  request: requestMock,
 }));
 
-function makeClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-    },
-  });
-}
-
-function wrapper(client: QueryClient) {
-  return function Wrapper({ children }: { children: React.ReactNode }) {
-    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-  };
-}
+beforeEach(() => {
+  requestMock.mockReset();
+});
 
 test("renders skeleton while data loads", async () => {
-  const { fetchInvoices } = await import("./use-invoices.hook");
-  (fetchInvoices as ReturnType<typeof mock>).mockImplementation(() => new Promise(() => {}));
+  requestMock.mockImplementation(() => new Promise(() => {}));
 
   const client = makeClient();
-  render(<InvoiceListFeature />, { wrapper: wrapper(client) });
+  await act(async () => {
+    render(<InvoiceListFeature />, { wrapper: makeWrapper(client) });
+  });
 
   expect(screen.getByTestId("invoice-list-skeleton")).toBeDefined();
 });
@@ -42,11 +41,12 @@ test("renders invoice rows when data resolves", async () => {
     { id: 3, name: "Stark Industries", amount: 9800, status: "pending" },
   ];
 
-  const { fetchInvoices } = await import("./use-invoices.hook");
-  (fetchInvoices as ReturnType<typeof mock>).mockImplementation(() => Promise.resolve(invoices));
+  requestMock.mockImplementation(() => httpOk(invoices));
 
   const client = makeClient();
-  render(<InvoiceListFeature />, { wrapper: wrapper(client) });
+  await act(async () => {
+    render(<InvoiceListFeature />, { wrapper: makeWrapper(client) });
+  });
 
   await waitFor(() => {
     expect(screen.getByText("Acme Corp")).toBeDefined();
@@ -59,11 +59,12 @@ test("renders invoice rows when data resolves", async () => {
 });
 
 test("renders empty state when list is empty", async () => {
-  const { fetchInvoices } = await import("./use-invoices.hook");
-  (fetchInvoices as ReturnType<typeof mock>).mockImplementation(() => Promise.resolve([]));
+  requestMock.mockImplementation(() => httpOk([]));
 
   const client = makeClient();
-  render(<InvoiceListFeature />, { wrapper: wrapper(client) });
+  await act(async () => {
+    render(<InvoiceListFeature />, { wrapper: makeWrapper(client) });
+  });
 
   await waitFor(() => {
     expect(screen.getByTestId("invoice-list-empty")).toBeDefined();
@@ -71,13 +72,13 @@ test("renders empty state when list is empty", async () => {
 });
 
 test("renders error state with retry button when fetch fails", async () => {
-  const { fetchInvoices } = await import("./use-invoices.hook");
-  (fetchInvoices as ReturnType<typeof mock>).mockImplementation(() =>
-    Promise.reject(new Error("Network error")),
-  );
+  spyOn(console, "error").mockImplementation(() => {});
+  requestMock.mockImplementationOnce(() => httpError(500, "Network error"));
 
   const client = makeClient();
-  render(<InvoiceListFeature />, { wrapper: wrapper(client) });
+  await act(async () => {
+    render(<InvoiceListFeature />, { wrapper: makeWrapper(client) });
+  });
 
   await waitFor(() => {
     expect(screen.getByTestId("invoice-list-error")).toBeDefined();
@@ -85,7 +86,7 @@ test("renders error state with retry button when fetch fails", async () => {
   });
 
   const user = userEvent.setup();
-  (fetchInvoices as ReturnType<typeof mock>).mockImplementation(() => Promise.resolve([]));
+  requestMock.mockImplementationOnce(() => httpOk([]));
   await user.click(screen.getByRole("button", { name: /retry/i }));
 
   await waitFor(() => {

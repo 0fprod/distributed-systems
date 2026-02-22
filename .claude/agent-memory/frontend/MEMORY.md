@@ -69,6 +69,14 @@
 - For `useSuspenseQuery` + ErrorBoundary retry: use `useQueryErrorResetBoundary` in the feature container and pass `onReset={reset}` to `<ErrorBoundary>` — without this, TanStack Query re-throws the cached error after `resetErrorBoundary`
 - Never-resolving promise `new Promise(() => {})` is the correct way to keep a component in Suspense for skeleton tests
 
+### WebSocket Hook Testing Pattern
+
+- Replace `globalThis.WebSocket` with a `mock()` constructor in `beforeEach`; use `@ts-expect-error` to suppress the type error
+- The mock constructor must return a plain object with `url`, `onmessage: null`, and `close: mock()`; capture the last instance in a module-level `let lastSocket` variable
+- Trigger messages via `lastSocket.onmessage!(new MessageEvent("message", { data: JSON.stringify(...) }))` inside `act(async () => { ... })`
+- In HappyDOM, `window.location.protocol` is `"http:"` and `window.location.host` is `""`, so `buildWsUrl("/ws")` produces `"ws:///ws"` — assert that exact string in the URL test
+- `spyOn(client, "invalidateQueries")` works for TanStack Query invalidation assertions; alternatively assign `client.invalidateQueries = mock(...)` directly
+
 ### Testing Commands
 
 - From root: `bun test apps/frontend`

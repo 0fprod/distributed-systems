@@ -17,4 +17,17 @@ export default defineConfig({
   optimizeDeps: {
     include: ["@distributed-systems/shared"],
   },
+  server: {
+    proxy: {
+      "/invoices": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+      },
+      "/ws": {
+        target: "ws://localhost:3000",
+        ws: true,
+        changeOrigin: true,
+      },
+    },
+  },
 });

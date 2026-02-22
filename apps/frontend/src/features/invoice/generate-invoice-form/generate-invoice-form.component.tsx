@@ -1,4 +1,7 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+
+import { QueryKeys } from "#shared/query-keys";
 
 import { submitInvoice } from "./submit-invoice";
 
@@ -8,11 +11,13 @@ interface InvoiceFormData {
 }
 
 export function GenerateInvoiceForm() {
+  const queryClient = useQueryClient();
   const [form, setForm] = useState<InvoiceFormData>({ name: "", amount: "" });
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await submitInvoice(form);
+    await queryClient.invalidateQueries({ queryKey: QueryKeys.invoices });
     setForm({ name: "", amount: "" });
   }
 

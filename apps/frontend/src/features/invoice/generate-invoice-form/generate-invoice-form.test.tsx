@@ -1,6 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, mock, test } from "bun:test";
+import { expect, mock, spyOn, test } from "bun:test";
+
+import { QueryKeys } from "#shared/query-keys";
 
 import { GenerateInvoiceForm } from "./generate-invoice-form.component";
 
@@ -8,8 +11,23 @@ mock.module("./submit-invoice", () => ({
   submitInvoice: mock(() => Promise.resolve()),
 }));
 
+function makeClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
+}
+
+function wrapper(client: QueryClient) {
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  };
+}
+
 test("renders name and amount inputs", () => {
-  render(<GenerateInvoiceForm />);
+  const client = makeClient();
+  render(<GenerateInvoiceForm />, { wrapper: wrapper(client) });
 
   expect(screen.getByLabelText("Name")).toBeDefined();
   expect(screen.getByLabelText("Amount")).toBeDefined();
@@ -18,7 +36,8 @@ test("renders name and amount inputs", () => {
 
 test("submits the form with correct values and resets fields after submit", async () => {
   const user = userEvent.setup();
-  render(<GenerateInvoiceForm />);
+  const client = makeClient();
+  render(<GenerateInvoiceForm />, { wrapper: wrapper(client) });
 
   await user.type(screen.getByLabelText("Name"), "Acme Corp");
   await user.type(screen.getByLabelText("Amount"), "1200");
@@ -26,4 +45,20 @@ test("submits the form with correct values and resets fields after submit", asyn
 
   expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("");
   expect((screen.getByLabelText("Amount") as HTMLInputElement).value).toBe("");
+});
+
+test("invalidates invoices query after successful submit", async () => {
+  const user = userEvent.setup();
+  const client = makeClient();
+  const invalidateSpy = spyOn(client, "invalidateQueries");
+
+  render(<GenerateInvoiceForm />, { wrapper: wrapper(client) });
+
+  await user.type(screen.getByLabelText("Name"), "Acme Corp");
+  await user.type(screen.getByLabelText("Amount"), "1200");
+  await user.click(screen.getByRole("button", { name: "Generate Invoice" }));
+
+  await waitFor(() => {
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: QueryKeys.invoices });
+  });
 });
