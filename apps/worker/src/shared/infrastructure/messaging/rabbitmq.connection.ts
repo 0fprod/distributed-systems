@@ -10,7 +10,7 @@ async function connectWithRetry(
   url: string,
   attempts = 8,
   delayMs = 1000,
-): Promise<amqplib.Connection> {
+): Promise<amqplib.ChannelModel> {
   for (let i = 1; i <= attempts; i++) {
     try {
       return await amqplib.connect(url);
@@ -31,7 +31,8 @@ export async function getRabbitMQChannel(): Promise<amqplib.Channel> {
 
   const url = process.env.RABBITMQ_URL ?? "amqp://localhost";
   const connection = await connectWithRetry(url);
-  channel = await connection.createChannel();
+  const ch = await connection.createChannel();
+  channel = ch;
 
   connection.on("error", (err) => {
     console.error("[rabbitmq] connection error", err);
@@ -42,5 +43,5 @@ export async function getRabbitMQChannel(): Promise<amqplib.Channel> {
     channel = null;
   });
 
-  return channel;
+  return ch;
 }

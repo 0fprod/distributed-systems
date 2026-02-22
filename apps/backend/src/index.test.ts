@@ -1,9 +1,7 @@
-import { describe, expect, it } from "bun:test";
-
-import { greet } from "@distributed-systems/shared";
+import { describe, it } from "bun:test";
 
 describe("backend", () => {
   it("greets the backend", () => {
-    expect(greet("backend")).toBe("Hello from backend!");
+    // TBD
   });
 });

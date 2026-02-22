@@ -171,7 +171,7 @@ export const TodoListFeature = () => {
 };
 ```
 
-## ⚡ Agent Instructions
+## Agent Instructions
 
 When the user asks you to organize a project, create a new component, or refactor code, you must:
 
