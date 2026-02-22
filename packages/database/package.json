@@ -16,6 +16,8 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
+    "predb:migrate:deploy": "prisma generate",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "build": "bun run db:generate && bun build src/index.ts --outdir dist --target bun",
     "typecheck": "tsc --noEmit"

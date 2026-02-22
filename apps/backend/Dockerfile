@@ -23,11 +23,6 @@ RUN mkdir -p /app/node_modules/@distributed-systems && \
 COPY packages/shared/ ./packages/shared/
 COPY packages/database/ ./packages/database/
 
-# Generate the Prisma client (no DB connection needed at build time).
-# PRISMA_GENERATE_SKIP_AUTOINSTALL: @prisma/client is already installed via bun, skip npm fallback.
-ENV PRISMA_GENERATE_SKIP_AUTOINSTALL=true
-RUN bun run --filter '@distributed-systems/database' db:generate
-
 COPY apps/backend/ ./apps/backend/
 
 WORKDIR /app/apps/backend
@@ -35,4 +30,4 @@ WORKDIR /app/apps/backend
 EXPOSE 3000
 
 # Run db:push to create/migrate the SQLite schema on the mounted volume, then start.
-CMD ["sh", "-c", "bun run --filter '@distributed-systems/database' db:push && bun run src/index.ts"]
+CMD ["sh", "-c", "bun run --filter '@distributed-systems/database' db:migrate:deploy && bun run src/index.ts"]

@@ -20,6 +20,7 @@
     "test": "bun run --filter '*' test",
     "db:generate": "bun run --filter '@distributed-systems/database' db:generate",
     "db:push": "bun run --filter '@distributed-systems/database' db:push",
+    "db:migrate": "bun run --cwd packages/database db:migrate",
     "db:setup": "bun run db:generate && bun run db:push"
   },
   "devDependencies": {

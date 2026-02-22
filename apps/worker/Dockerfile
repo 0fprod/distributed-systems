@@ -23,7 +23,7 @@ RUN mkdir -p /app/node_modules/@distributed-systems && \
 COPY packages/shared/ ./packages/shared/
 COPY packages/database/ ./packages/database/
 
-# Generate the Prisma client (no DB connection needed at build time).
+# Generate the Prisma client for the worker (no migrate:deploy here — backend owns migrations).
 # PRISMA_GENERATE_SKIP_AUTOINSTALL: @prisma/client is already installed via bun, skip npm fallback.
 ENV PRISMA_GENERATE_SKIP_AUTOINSTALL=true
 RUN bun run --filter '@distributed-systems/database' db:generate
