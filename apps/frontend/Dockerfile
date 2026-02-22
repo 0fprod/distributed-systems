@@ -4,7 +4,7 @@ FROM oven/bun:1.3.6-alpine AS builder
 WORKDIR /app
 
 # Copy workspace manifests and lockfile first to leverage Docker layer cache.
-COPY package.json bun.lock bunfig.toml ./
+COPY package.json bun.lock bunfig.toml tsconfig.json ./
 COPY apps/backend/package.json ./apps/backend/
 COPY apps/frontend/package.json ./apps/frontend/
 COPY apps/worker/package.json ./apps/worker/

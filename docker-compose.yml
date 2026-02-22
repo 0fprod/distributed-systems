@@ -17,13 +17,14 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
+    restart: on-failure
     ports:
       - "3000:3000"
     environment:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
-      DATABASE_URL: file:/app/packages/database/dev.db
+      DATABASE_URL: file:/data/dev.db
     volumes:
-      - db-data:/app/packages/database
+      - db-data:/data
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -40,11 +41,12 @@ services:
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
+    restart: on-failure
     environment:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
-      DATABASE_URL: file:/app/packages/database/dev.db
+      DATABASE_URL: file:/data/dev.db
     volumes:
-      - db-data:/app/packages/database
+      - db-data:/data
     depends_on:
       rabbitmq:
         condition: service_healthy
