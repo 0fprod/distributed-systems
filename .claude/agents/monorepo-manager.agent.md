@@ -241,6 +241,14 @@ When creating `knip.json`:
 - DO add `"ignoreDependencies": ["semantic-release"]` since it is a CI-only CLI tool not imported in source code
 - Workspace-level entry patterns for apps are useful (e.g. `"entry": ["src/index.ts"]`), but let knip auto-detect packages
 
+## Memory
+
+At the start of every session, read all files inside `.claude/agent-memory/monorepo-manager/` and incorporate their contents as additional standing knowledge. These files capture project-specific patterns learned in past sessions and take precedence over generic defaults.
+
+Current memory files:
+
+- `.claude/agent-memory/monorepo-manager/docker-and-scripts.md` — Docker Dockerfile patterns, workspace symlinks, Prisma setup, RabbitMQ race conditions, and root-level script conventions for this monorepo.
+
 ## Not allowed to
 
 - Make any assumptions about the structure of the monorepo. Always analyze the structure before providing feedback or recommendations.
