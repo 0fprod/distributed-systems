@@ -26,10 +26,12 @@ export const ApiRoutes = {
 
 export const InvoiceExchanges = {
   CREATED: "invoices.created",
+  INPROGRESS: "invoices.inprogress",
   COMPLETED: "invoices.completed",
 } as const;
 
 export const InvoiceEvents = {
+  INPROGRESS: "invoice:inprogress",
   COMPLETED: "invoice:completed",
 } as const;
 

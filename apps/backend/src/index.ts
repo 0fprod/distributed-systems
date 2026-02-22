@@ -1,11 +1,14 @@
 import { Elysia } from "elysia";
 
 import { startInvoiceCompletedConsumer } from "#modules/invoicing/infrastructure/messaging/invoice-completed.consumer";
+import { startInvoiceInProgressConsumer } from "#modules/invoicing/infrastructure/messaging/invoice-inprogress.consumer";
 import { invoiceRoutes } from "#modules/invoicing/presentation/http/invoice.routes";
 import { wsRoutes } from "#modules/invoicing/presentation/http/ws.routes";
 
-// Start the RabbitMQ consumer before accepting HTTP traffic so no
-// "invoices.completed" messages are missed during startup.
+// Start RabbitMQ consumers before accepting HTTP traffic so no messages are
+// missed during startup. Each consumer binds its own exclusive queue to its
+// respective fanout exchange.
+await startInvoiceInProgressConsumer();
 await startInvoiceCompletedConsumer();
 
 const app = new Elysia()

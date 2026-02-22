@@ -23,6 +23,8 @@ export async function processInvoiceHandler(
     data: { status: InvoiceStatus.INPROGRESS },
   });
 
+  await deps.publisher.publish(InvoiceExchanges.INPROGRESS, { invoiceId });
+
   await processFakeInvoice(invoiceId);
 
   await prisma.invoice.update({

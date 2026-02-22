@@ -6,8 +6,8 @@ import { ApiRoutes, InvoiceEvents } from "@distributed-systems/shared";
 import { QueryKeys } from "#shared/query-keys";
 import { createWebSocket } from "#shared/websocket";
 
-interface InvoiceCompletedMessage {
-  type: typeof InvoiceEvents.COMPLETED;
+interface InvoiceStatusMessage {
+  type: typeof InvoiceEvents.INPROGRESS | typeof InvoiceEvents.COMPLETED;
   invoiceId: number;
 }
 
@@ -23,9 +23,9 @@ export function useInvoiceWebSocket() {
     const ws = createWebSocket(buildWsUrl(ApiRoutes.WS));
 
     ws.onmessage = (event: MessageEvent<string>) => {
-      const message = JSON.parse(event.data) as InvoiceCompletedMessage;
+      const message = JSON.parse(event.data) as InvoiceStatusMessage;
 
-      if (message.type === InvoiceEvents.COMPLETED) {
+      if (message.type === InvoiceEvents.COMPLETED || message.type === InvoiceEvents.INPROGRESS) {
         void queryClient.invalidateQueries({ queryKey: QueryKeys.invoices });
       }
     };

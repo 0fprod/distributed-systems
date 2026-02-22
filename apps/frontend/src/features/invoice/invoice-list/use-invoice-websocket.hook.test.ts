@@ -43,6 +43,20 @@ test("invalidates invoices query on invoice:completed message", async () => {
   expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: QueryKeys.invoices });
 });
 
+test("invalidates invoices query on invoice:inprogress message", async () => {
+  const client = makeClient();
+  const invalidateSpy = mock(() => Promise.resolve());
+  client.invalidateQueries = invalidateSpy;
+
+  renderHook(() => useInvoiceWebSocket(), { wrapper: makeWrapper(client) });
+
+  await act(async () => {
+    fakeWs.emit({ type: "invoice:inprogress", invoiceId: 1 });
+  });
+
+  expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: QueryKeys.invoices });
+});
+
 test("does not invalidate on unknown message type", async () => {
   const client = makeClient();
   const invalidateSpy = mock(() => Promise.resolve());
