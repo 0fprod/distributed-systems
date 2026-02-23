@@ -39,7 +39,10 @@ stateDiagram-v2
     inprogress  --> completed  : processing done
     pending     --> failed     : invalid data (→ DLQ)
     failed      --> pending    : PATCH /invoices/<id> (edit & retry)
-    completed   --> [*]
+    pending     --> [*]        : DELETE /invoices/<id>
+    inprogress  --> [*]        : DELETE /invoices/<id>
+    completed   --> [*]        : DELETE /invoices/<id>
+    failed      --> [*]        : DELETE /invoices/<id>
 ```
 
 ### Message topology (RabbitMQ)
@@ -181,7 +184,7 @@ distributed-systems/
 ├── apps/
 │   ├── backend/          # ElysiaJS REST API + WebSocket server
 │   │   └── src/modules/invoicing/
-│   │       ├── application/commands/   # create-invoice, retry-invoice
+│   │       ├── application/commands/   # create-invoice, retry-invoice, delete-invoice
 │   │       ├── application/queries/    # list-invoices
 │   │       ├── domain/                 # repository interface, errors
 │   │       ├── infrastructure/         # Prisma repo, RabbitMQ consumers
