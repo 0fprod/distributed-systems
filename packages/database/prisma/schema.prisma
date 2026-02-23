@@ -1,5 +1,5 @@
 // Prisma schema for the distributed-systems monorepo.
-// SQLite is used for simplicity — no external DB required.
+// MySQL is used as the database provider.
 // The generated client is consumed by both apps/backend and apps/worker
 // via the @distributed-systems/database workspace package.
 
@@ -12,9 +12,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  // Path is relative to the prisma/ directory at schema resolution time.
-  // The dev.db file sits at the packages/database root.
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 

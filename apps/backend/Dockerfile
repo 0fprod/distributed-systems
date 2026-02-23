@@ -32,5 +32,7 @@ WORKDIR /app/apps/backend
 
 EXPOSE 3000
 
-# Run db:push to create/migrate the SQLite schema on the mounted volume, then start.
+ENV PRISMA_GENERATE_SKIP_AUTOINSTALL=true
+
+# Run db:migrate:deploy to apply pending migrations, then start.
 CMD ["sh", "-c", "bun run --filter '@distributed-systems/database' db:migrate:deploy && bun run src/index.ts"]

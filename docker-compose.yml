@@ -13,6 +13,22 @@ services:
     networks:
       - app-network
 
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: invoices
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - app-network
+
   backend:
     build:
       context: .
@@ -22,11 +38,12 @@ services:
       - "3000:3000"
     environment:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
-      DATABASE_URL: file:/data/dev.db
-    volumes:
-      - db-data:/data
+      DATABASE_URL: mysql://root:root@mysql:3306/invoices
+      PRISMA_GENERATE_SKIP_AUTOINSTALL: "true"
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      mysql:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
@@ -44,14 +61,22 @@ services:
     restart: on-failure
     environment:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
-      DATABASE_URL: file:/data/dev.db
-    volumes:
-      - db-data:/data
+      DATABASE_URL: mysql://root:root@mysql:3306/invoices
     depends_on:
       rabbitmq:
         condition: service_healthy
       backend:
         condition: service_started
+    networks:
+      - app-network
+
+  adminer:
+    image: adminer
+    ports:
+      - "8081:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
     networks:
       - app-network
 
@@ -63,9 +88,6 @@ services:
       - "8080:80"
     networks:
       - app-network
-
-volumes:
-  db-data:
 
 networks:
   app-network:
