@@ -10,6 +10,7 @@ COPY apps/frontend/package.json ./apps/frontend/
 COPY apps/worker/package.json ./apps/worker/
 COPY packages/database/package.json ./packages/database/
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/rabbitmq/package.json ./packages/rabbitmq/
 
 # Install all workspace dependencies from the root lockfile.
 RUN bun install --frozen-lockfile

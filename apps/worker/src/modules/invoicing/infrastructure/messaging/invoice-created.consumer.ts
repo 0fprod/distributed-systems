@@ -1,4 +1,4 @@
-import { subscribe } from "@distributed-systems/rabbitmq";
+import { QueueNames, subscribeWork } from "@distributed-systems/rabbitmq";
 import { InvoiceExchanges } from "@distributed-systems/shared";
 
 import { processInvoiceHandler } from "../../application/commands/process-invoice/process-invoice.handler";
@@ -16,20 +16,23 @@ function isInvoiceCreatedPayload(v: unknown): v is InvoiceCreatedPayload {
   );
 }
 
-// Starts consuming the "invoices.created" fanout exchange.
+// Starts a work-queue consumer on the "invoices.created" fanout exchange.
 // Each message triggers a ProcessInvoiceHandler call.
-// Using an exclusive, auto-delete queue so multiple worker instances each
-// process every invoice independently (fanout semantics).
-// prefetch(1): process one invoice at a time per worker instance to prevent
-// a single slow invoice from monopolising the channel.
+// Using a named durable queue (work-queue semantics) so multiple worker
+// instances compete for messages — each invoice is processed exactly once
+// regardless of how many workers are running.
+// Failed messages are routed to the DLQ for inspection and manual replay.
+// prefetch defaults to 1 in subscribeWork — broker withholds the next message
+// until the worker acks the current one.
 export async function startInvoiceCreatedConsumer(): Promise<void> {
-  await subscribe(
+  await subscribeWork(
     InvoiceExchanges.CREATED,
+    QueueNames.WORKER_INVOICES_CREATED,
     async (payload) => {
       if (!isInvoiceCreatedPayload(payload)) {
         console.warn("[consumer] unexpected invoices.created payload", payload);
-        // Throwing here causes subscribe's catch block to nack without requeue,
-        // which prevents a malformed message from looping forever.
+        // Throwing here causes subscribeWork's catch block to nack without
+        // requeue, routing the malformed message to the DLQ.
         throw new Error("invalid payload");
       }
 
@@ -38,10 +41,7 @@ export async function startInvoiceCreatedConsumer(): Promise<void> {
 
       await processInvoiceHandler(processInvoiceCommand, deps);
     },
-    // prefetch: 1 — work-queue semantics: broker withholds the next message
-    // until the worker acks the current one.
-    { prefetch: 1 },
   );
 
-  console.log(`[worker] consuming "${InvoiceExchanges.CREATED}"`);
+  console.log(`[worker] work-queue consumer started on "${QueueNames.WORKER_INVOICES_CREATED}"`);
 }

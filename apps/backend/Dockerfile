@@ -9,6 +9,7 @@ COPY apps/frontend/package.json ./apps/frontend/
 COPY apps/worker/package.json ./apps/worker/
 COPY packages/database/package.json ./packages/database/
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/rabbitmq/package.json ./packages/rabbitmq/
 
 # Install all workspace dependencies from the root lockfile.
 RUN bun install --frozen-lockfile
@@ -17,11 +18,13 @@ RUN bun install --frozen-lockfile
 # bun install --frozen-lockfile does not reliably create workspace symlinks in Docker.
 RUN mkdir -p /app/node_modules/@distributed-systems && \
     ln -sfn /app/packages/shared /app/node_modules/@distributed-systems/shared && \
-    ln -sfn /app/packages/database /app/node_modules/@distributed-systems/database
+    ln -sfn /app/packages/database /app/node_modules/@distributed-systems/database && \
+    ln -sfn /app/packages/rabbitmq /app/node_modules/@distributed-systems/rabbitmq
 
 # Copy package sources (symlinks above now resolve to these directories).
 COPY packages/shared/ ./packages/shared/
 COPY packages/database/ ./packages/database/
+COPY packages/rabbitmq/ ./packages/rabbitmq/
 
 COPY apps/backend/ ./apps/backend/
 
