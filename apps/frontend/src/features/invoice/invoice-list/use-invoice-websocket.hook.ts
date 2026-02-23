@@ -20,17 +20,32 @@ export function useInvoiceWebSocket() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const ws = createWebSocket(buildWsUrl(ApiRoutes.WS));
+    let destroyed = false;
+    let ws: WebSocket;
 
-    ws.onmessage = (event: MessageEvent<string>) => {
-      const message = JSON.parse(event.data) as InvoiceStatusMessage;
+    function connect() {
+      if (destroyed) return;
+      ws = createWebSocket(buildWsUrl(ApiRoutes.WS));
 
-      if (message.type === InvoiceEvents.COMPLETED || message.type === InvoiceEvents.INPROGRESS) {
-        void queryClient.invalidateQueries({ queryKey: QueryKeys.invoices });
-      }
-    };
+      ws.onmessage = (event: MessageEvent<string>) => {
+        const message = JSON.parse(event.data) as InvoiceStatusMessage;
+
+        if (message.type === InvoiceEvents.COMPLETED || message.type === InvoiceEvents.INPROGRESS) {
+          void queryClient.invalidateQueries({ queryKey: QueryKeys.invoices });
+        }
+      };
+
+      ws.onclose = () => {
+        if (!destroyed) {
+          setTimeout(connect, 3000);
+        }
+      };
+    }
+
+    connect();
 
     return () => {
+      destroyed = true;
       ws.close();
     };
   }, [queryClient]);

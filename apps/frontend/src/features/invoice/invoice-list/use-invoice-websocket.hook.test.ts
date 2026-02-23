@@ -80,3 +80,69 @@ test("closes the WebSocket on unmount", () => {
 
   expect(fakeWs.close).toHaveBeenCalledTimes(1);
 });
+
+test("reconnects after the server closes the connection", async () => {
+  const client = makeClient();
+
+  renderHook(() => useInvoiceWebSocket(), { wrapper: makeWrapper(client) });
+
+  const firstWs = fakeWs;
+
+  // Capture the setTimeout call so we can trigger it synchronously.
+  let scheduledReconnect: (() => void) | undefined;
+  const originalSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = ((fn: () => void, _delay: number) => {
+    scheduledReconnect = fn;
+    return 0 as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
+
+  try {
+    act(() => {
+      firstWs.simulateClose();
+    });
+
+    // The onclose handler should have scheduled a reconnect.
+    expect(scheduledReconnect).toBeDefined();
+
+    // Trigger the reconnect.
+    act(() => {
+      scheduledReconnect!();
+    });
+
+    // A new WebSocket instance should have been created.
+    expect(fakeWs).not.toBe(firstWs);
+    expect(fakeWs.url).toBe("ws:///ws");
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+  }
+});
+
+test("does not reconnect after the hook is unmounted", () => {
+  const client = makeClient();
+
+  const { unmount } = renderHook(() => useInvoiceWebSocket(), { wrapper: makeWrapper(client) });
+
+  const firstWs = fakeWs;
+
+  let scheduledReconnect: (() => void) | undefined;
+  const originalSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = ((fn: () => void, _delay: number) => {
+    scheduledReconnect = fn;
+    return 0 as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
+
+  try {
+    // Unmount sets destroyed=true and calls ws.close().
+    act(() => {
+      unmount();
+    });
+
+    // The close triggered by cleanup should NOT schedule a reconnect.
+    expect(scheduledReconnect).toBeUndefined();
+
+    // Confirm the original socket was closed.
+    expect(firstWs.close).toHaveBeenCalledTimes(1);
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+  }
+});
