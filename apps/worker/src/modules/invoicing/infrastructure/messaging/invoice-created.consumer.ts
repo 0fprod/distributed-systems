@@ -2,6 +2,7 @@ import { QueueNames, subscribeWork } from "@distributed-systems/rabbitmq";
 import { InvoiceExchanges } from "@distributed-systems/shared";
 
 import { processInvoiceHandler } from "../../application/commands/process-invoice/process-invoice.handler";
+import { prismaInvoiceRepository } from "../repositories/prisma-invoice.repository";
 import { invoicePublisher } from "./invoice-publisher";
 
 interface InvoiceCreatedPayload {
@@ -37,7 +38,7 @@ export async function startInvoiceCreatedConsumer(): Promise<void> {
       }
 
       const processInvoiceCommand = { invoiceId: payload.invoiceId };
-      const deps = { publisher: invoicePublisher };
+      const deps = { publisher: invoicePublisher, repository: prismaInvoiceRepository };
 
       await processInvoiceHandler(processInvoiceCommand, deps);
     },

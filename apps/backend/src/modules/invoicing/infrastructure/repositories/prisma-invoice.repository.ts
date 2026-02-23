@@ -20,12 +20,33 @@ export const prismaInvoiceRepository: IInvoiceRepository = {
     }
   },
 
+  async findById(id) {
+    try {
+      const raw = await prisma.invoice.findUnique({ where: { id } });
+      return ok(raw ? toDomainInvoice(raw) : null);
+    } catch (e) {
+      return err(new InvoicePersistenceError("Failed to find invoice", e));
+    }
+  },
+
   async findAll() {
     try {
       const raws = await prisma.invoice.findMany({ orderBy: { createdAt: "desc" } });
       return ok(toDomainInvoices(raws));
     } catch (e) {
       return err(new InvoicePersistenceError("Failed to list invoices", e));
+    }
+  },
+
+  async update(invoice) {
+    try {
+      const raw = await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { name: invoice.name, amount: invoice.amount, status: invoice.status },
+      });
+      return ok(toDomainInvoice(raw));
+    } catch (e) {
+      return err(new InvoicePersistenceError("Failed to update invoice", e));
     }
   },
 };

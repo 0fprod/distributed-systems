@@ -4,6 +4,7 @@ import { publish } from "@distributed-systems/rabbitmq";
 import { ApiRoutes } from "@distributed-systems/shared";
 
 import { createInvoiceHandler } from "#modules/invoicing/application/commands/create-invoice/create-invoice.handler";
+import { retryInvoiceHandler } from "#modules/invoicing/application/commands/retry-invoice/retry-invoice.handler";
 import type { IMessagePublisher } from "#modules/invoicing/application/ports/message-publisher.port";
 import { listInvoicesHandler } from "#modules/invoicing/application/queries/list-invoices/list-invoices.handler";
 import { prismaInvoiceRepository } from "#modules/invoicing/infrastructure/repositories/prisma-invoice.repository.js";
@@ -40,7 +41,28 @@ export const invoiceRoutes = new Elysia({ prefix: ApiRoutes.INVOICES })
 
       return status(201, result.value); // { id: number }
     },
-    // Validation schema for the request body
+    {
+      body: t.Object({
+        name: t.String({ minLength: 1 }),
+        amount: t.Number({ minimum: 0 }),
+      }),
+    },
+  )
+  // PATCH /invoices/:id — fix data and re-queue a failed invoice
+  .patch(
+    "/:id",
+    async ({ params, body, status }) => {
+      const command = { invoiceId: Number(params.id), name: body.name, amount: body.amount };
+      const result = await retryInvoiceHandler(command, { repository, publisher });
+
+      if (!result.ok) {
+        const error = result.error;
+        const code = "type" in error && error.type === "not_found" ? 404 : 400;
+        return status(code, { message: error.message });
+      }
+
+      return result.value;
+    },
     {
       body: t.Object({
         name: t.String({ minLength: 1 }),
