@@ -5,9 +5,9 @@ import {
   processFakeInvoice,
 } from "@distributed-systems/shared";
 
-import type { InvoiceWorkerPersistenceError } from "#modules/invoicing/domain/errors/invoice.errors.js";
-import type { IInvoiceRepository } from "#modules/invoicing/domain/repositories/invoice.repository.interface.js";
-import type { Result } from "#modules/shared/core/result.js";
+import type { InvoiceWorkerPersistenceError } from "#modules/invoicing/domain/errors/invoice.errors";
+import type { IInvoiceRepository } from "#modules/invoicing/domain/repositories/invoice.repository.interface";
+import type { Result } from "#modules/shared/core/result";
 
 import type { IMessagePublisher } from "../../ports/message-publisher.port";
 import type { ProcessInvoiceCommand } from "./process-invoice.command";
@@ -31,13 +31,11 @@ export async function processInvoiceHandler(
 
   if (invoice.ok) {
     await deps.repository.update({ ...invoice.value, status: InvoiceStatus.INPROGRESS });
-
     await deps.publisher.publish(InvoiceExchanges.INPROGRESS, { invoiceId });
 
     await processFakeInvoice(invoiceId);
 
     await deps.repository.update({ ...invoice.value, status: InvoiceStatus.COMPLETED });
-
     await deps.publisher.publish(InvoiceExchanges.COMPLETED, { invoiceId });
 
     console.log(`[worker] invoice ${invoiceId} completed and event published`);

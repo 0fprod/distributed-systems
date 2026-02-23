@@ -1,8 +1,12 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { InvoiceStatus } from "@distributed-systems/shared";
 import type { Invoice } from "@distributed-systems/shared";
 
+import { QueryKeys } from "#shared/query-keys";
+
+import { deleteInvoice } from "./delete-invoice";
 import { EditInvoiceModal } from "./edit-invoice-modal";
 import { InvoiceListEmpty } from "./invoice-list.empty";
 import { InvoiceStatusBadge } from "./invoice-status-badge";
@@ -11,6 +15,12 @@ import { useInvoices } from "./use-invoices.hook";
 export function InvoiceList() {
   const { data: invoices } = useInvoices();
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const queryClient = useQueryClient();
+
+  async function handleDelete(id: number) {
+    await deleteInvoice(id);
+    await queryClient.invalidateQueries({ queryKey: QueryKeys.invoices });
+  }
 
   if (invoices.length === 0) {
     return <InvoiceListEmpty />;
@@ -24,7 +34,8 @@ export function InvoiceList() {
             <th className="pb-2 pr-4 font-medium">#</th>
             <th className="pb-2 pr-4 font-medium">Name</th>
             <th className="pb-2 pr-4 font-medium">Amount</th>
-            <th className="pb-2 font-medium">Status</th>
+            <th className="pb-2 pr-4 font-medium">Status</th>
+            <th className="pb-2 font-medium"></th>
           </tr>
         </thead>
         <tbody>
@@ -35,7 +46,7 @@ export function InvoiceList() {
               <td className="py-2 pr-4 text-gray-800">
                 {invoice.amount.toLocaleString("en-US", { style: "currency", currency: "USD" })}
               </td>
-              <td className="py-2">
+              <td className="py-2 pr-4">
                 <InvoiceStatusBadge status={invoice.status} />
                 {invoice.status === InvoiceStatus.FAILED && (
                   <button
@@ -46,6 +57,15 @@ export function InvoiceList() {
                     Edit &amp; Retry
                   </button>
                 )}
+              </td>
+              <td className="py-2">
+                <button
+                  type="button"
+                  onClick={() => handleDelete(invoice.id)}
+                  className="text-xs text-red-500 underline hover:text-red-700"
+                >
+                  Delete
+                </button>
               </td>
             </tr>
           ))}

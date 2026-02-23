@@ -4,8 +4,8 @@ import { beforeEach, expect, mock, spyOn, test } from "bun:test";
 
 import type { Invoice } from "@distributed-systems/shared";
 
-import { httpError, httpOk } from "#test/http-helpers.js";
-import { makeClient, makeWrapper } from "#test/query-helpers.js";
+import { httpError, httpOk } from "#test/http-helpers";
+import { makeClient, makeWrapper } from "#test/query-helpers";
 import { makeFakeWebSocket } from "#test/websocket-helpers";
 
 import { InvoiceListFeature } from "./invoice-list.feature";
@@ -134,6 +134,89 @@ test("clicking Edit & Retry opens the modal", async () => {
 
   await waitFor(() => {
     expect(screen.getByText("Edit & Retry Invoice")).toBeDefined();
+  });
+});
+
+test("each invoice row renders a Delete button", async () => {
+  const invoices: Invoice[] = [
+    { id: 1, name: "Acme Corp", amount: 1200, status: "completed" },
+    { id: 2, name: "Globex Inc", amount: 450, status: "inprogress" },
+  ];
+
+  requestMock.mockImplementation(() => httpOk(invoices));
+
+  const client = makeClient();
+  await act(async () => {
+    render(<InvoiceListFeature />, { wrapper: makeWrapper(client) });
+  });
+
+  await waitFor(() => {
+    expect(screen.getByText("Acme Corp")).toBeDefined();
+  });
+
+  const deleteButtons = screen.getAllByRole("button", { name: /delete/i });
+  expect(deleteButtons.length).toBe(2);
+});
+
+test("clicking Delete calls DELETE /invoices/:id", async () => {
+  const invoices: Invoice[] = [{ id: 5, name: "Umbrella Corp", amount: 800, status: "completed" }];
+
+  requestMock.mockImplementationOnce(() => httpOk(invoices));
+  requestMock.mockImplementationOnce(() => httpOk(null));
+  requestMock.mockImplementationOnce(() => httpOk([]));
+
+  const client = makeClient();
+  await act(async () => {
+    render(<InvoiceListFeature />, { wrapper: makeWrapper(client) });
+  });
+
+  await waitFor(() => {
+    expect(screen.getByText("Umbrella Corp")).toBeDefined();
+  });
+
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: /delete/i }));
+
+  await waitFor(() => {
+    const calls = requestMock.mock.calls;
+    const deleteCall = calls.find(
+      (call) => (call[1] as RequestInit | undefined)?.method === "DELETE",
+    );
+    expect(deleteCall).toBeDefined();
+    expect(deleteCall![0]).toBe("/invoices/5");
+  });
+});
+
+test("after Delete succeeds the invoices query is refetched and updated list is shown", async () => {
+  const invoices: Invoice[] = [
+    { id: 1, name: "Acme Corp", amount: 1200, status: "completed" },
+    { id: 2, name: "Globex Inc", amount: 450, status: "inprogress" },
+  ];
+  const invoicesAfterDelete: Invoice[] = [
+    { id: 2, name: "Globex Inc", amount: 450, status: "inprogress" },
+  ];
+
+  requestMock.mockImplementationOnce(() => httpOk(invoices));
+  requestMock.mockImplementationOnce(() => httpOk(null));
+  requestMock.mockImplementationOnce(() => httpOk(invoicesAfterDelete));
+
+  const client = makeClient();
+  await act(async () => {
+    render(<InvoiceListFeature />, { wrapper: makeWrapper(client) });
+  });
+
+  await waitFor(() => {
+    expect(screen.getByText("Acme Corp")).toBeDefined();
+    expect(screen.getByText("Globex Inc")).toBeDefined();
+  });
+
+  const user = userEvent.setup();
+  const deleteButtons = screen.getAllByRole("button", { name: /delete/i });
+  await user.click(deleteButtons[0]!);
+
+  await waitFor(() => {
+    expect(screen.queryByText("Acme Corp")).toBeNull();
+    expect(screen.getByText("Globex Inc")).toBeDefined();
   });
 });
 

@@ -49,4 +49,13 @@ export const prismaInvoiceRepository: IInvoiceRepository = {
       return err(new InvoicePersistenceError("Failed to update invoice", e));
     }
   },
+
+  async deleteById(id) {
+    try {
+      await prisma.invoice.delete({ where: { id } });
+      return ok(undefined);
+    } catch (e) {
+      return err(new InvoicePersistenceError("Failed to delete invoice", e));
+    }
+  },
 };

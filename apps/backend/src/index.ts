@@ -7,8 +7,7 @@ import { invoiceRoutes } from "#modules/invoicing/presentation/http/invoice.rout
 import { wsRoutes } from "#modules/invoicing/presentation/http/ws.routes";
 
 // Start RabbitMQ consumers before accepting HTTP traffic so no messages are
-// missed during startup. Each consumer binds its own exclusive queue to its
-// respective fanout exchange.
+// missed during startup.
 await startInvoiceInProgressConsumer();
 await startInvoiceCompletedConsumer();
 await startInvoiceFailedConsumer();

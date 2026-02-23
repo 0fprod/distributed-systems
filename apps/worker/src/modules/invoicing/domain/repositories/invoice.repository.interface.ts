@@ -1,6 +1,6 @@
 import type { Invoice } from "@distributed-systems/shared";
 
-import type { Result } from "#modules/shared/core/result.js";
+import type { Result } from "#modules/shared/core/result";
 
 import type { InvoiceWorkerPersistenceError } from "../errors/invoice.errors";
 

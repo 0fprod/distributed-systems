@@ -4,10 +4,11 @@ import { publish } from "@distributed-systems/rabbitmq";
 import { ApiRoutes } from "@distributed-systems/shared";
 
 import { createInvoiceHandler } from "#modules/invoicing/application/commands/create-invoice/create-invoice.handler";
+import { deleteInvoiceHandler } from "#modules/invoicing/application/commands/delete-invoice/delete-invoice.handler";
 import { retryInvoiceHandler } from "#modules/invoicing/application/commands/retry-invoice/retry-invoice.handler";
 import type { IMessagePublisher } from "#modules/invoicing/application/ports/message-publisher.port";
 import { listInvoicesHandler } from "#modules/invoicing/application/queries/list-invoices/list-invoices.handler";
-import { prismaInvoiceRepository } from "#modules/invoicing/infrastructure/repositories/prisma-invoice.repository.js";
+import { prismaInvoiceRepository } from "#modules/invoicing/infrastructure/repositories/prisma-invoice.repository";
 
 const repository = prismaInvoiceRepository;
 // Thin local adapter: wraps the shared publish primitive and satisfies the
@@ -69,4 +70,10 @@ export const invoiceRoutes = new Elysia({ prefix: ApiRoutes.INVOICES })
         amount: t.Number({ minimum: 0 }),
       }),
     },
-  );
+  )
+  // DELETE /invoices/:id — command, permanently removes an invoice
+  .delete("/:id", async ({ params, status }) => {
+    const result = await deleteInvoiceHandler({ invoiceId: Number(params.id) }, { repository });
+    if (!result.ok) return status(500, { message: result.error.message });
+    return status(204, null);
+  });

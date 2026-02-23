@@ -13,4 +13,5 @@ export interface IInvoiceRepository {
   update(invoice: Invoice): Promise<Result<Invoice, InvoicePersistenceError>>;
   findById(id: number): Promise<Result<Invoice | null, InvoicePersistenceError>>;
   findAll(): Promise<Result<Invoice[], InvoicePersistenceError>>;
+  deleteById(id: number): Promise<Result<void, InvoicePersistenceError>>;
 }
