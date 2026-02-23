@@ -8,17 +8,47 @@ Scope prefix: `@distributed-systems`
 
 ## Docker
 
+### Workspace packages
+
+| Package             | npm name                        | Notes                                                                                                                      |
+| ------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `packages/database` | `@distributed-systems/database` | Prisma client, migrations                                                                                                  |
+| `packages/shared`   | `@distributed-systems/shared`   | Shared domain types / constants                                                                                            |
+| `packages/rabbitmq` | `@distributed-systems/rabbitmq` | `publish()`, `subscribe()` (broadcast), `subscribeWork()` (durable+DLQ), `ConsumerChannels`, `QueueNames`, `ExchangeNames` |
+
+`amqplib` and `@types/amqplib` are dependencies of `packages/rabbitmq` — NOT of individual apps.
+
+### Adding a new `packages/*` workspace — required Dockerfile changes
+
+Whenever a new workspace package is added, ALL Dockerfiles must be updated **before** `bun install --frozen-lockfile`. The lockfile already references the new manifest so `bun install` fails if the manifest is missing.
+
+**Every Dockerfile** (backend, worker, frontend):
+
+```dockerfile
+COPY packages/<name>/package.json ./packages/<name>/
+```
+
+**Backend and worker only** — also add symlink and source copy:
+
+```dockerfile
+ln -sfn /app/packages/<name> /app/node_modules/@distributed-systems/<name>
+COPY packages/<name>/ ./packages/<name>/
+```
+
+Frontend only needs the manifest copy (bun.lock references it but frontend doesn't import it directly).
+
 ### Workspace symlinks must be created manually
 
 `bun install --frozen-lockfile` inside Docker does NOT create workspace symlinks reliably.
-Local packages (`@distributed-systems/shared`, `@distributed-systems/database`) are not resolved at runtime without explicit symlinks.
+Local packages (`@distributed-systems/shared`, `@distributed-systems/database`, `@distributed-systems/rabbitmq`) are not resolved at runtime without explicit symlinks.
 
 Always add this step after `bun install`:
 
 ```dockerfile
 RUN mkdir -p /app/node_modules/@distributed-systems && \
     ln -sfn /app/packages/shared /app/node_modules/@distributed-systems/shared && \
-    ln -sfn /app/packages/database /app/node_modules/@distributed-systems/database
+    ln -sfn /app/packages/database /app/node_modules/@distributed-systems/database && \
+    ln -sfn /app/packages/rabbitmq /app/node_modules/@distributed-systems/rabbitmq
 ```
 
 ### Single-stage for apps that run TypeScript directly
@@ -75,15 +105,18 @@ COPY apps/frontend/package.json ./apps/frontend/
 COPY apps/worker/package.json ./apps/worker/
 COPY packages/database/package.json ./packages/database/
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/rabbitmq/package.json ./packages/rabbitmq/
 
 RUN bun install --frozen-lockfile
 
 RUN mkdir -p /app/node_modules/@distributed-systems && \
     ln -sfn /app/packages/shared /app/node_modules/@distributed-systems/shared && \
-    ln -sfn /app/packages/database /app/node_modules/@distributed-systems/database
+    ln -sfn /app/packages/database /app/node_modules/@distributed-systems/database && \
+    ln -sfn /app/packages/rabbitmq /app/node_modules/@distributed-systems/rabbitmq
 
 COPY packages/shared/ ./packages/shared/
 COPY packages/database/ ./packages/database/
+COPY packages/rabbitmq/ ./packages/rabbitmq/
 
 ENV PRISMA_GENERATE_SKIP_AUTOINSTALL=true
 RUN bun run --filter '@distributed-systems/database' db:generate

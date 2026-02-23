@@ -31,17 +31,49 @@ Key decisions:
 
 ## RabbitMQ conventions
 
-- **Shared package**: `packages/rabbitmq` (`@distributed-systems/rabbitmq`) — exports ONLY `publish` and `subscribe`
-- Two separate connections: publisher connection + consumer connection (RabbitMQ best practice — isolates failure domains)
-- Channel Map for consumers: `getConsumerChannel(id)` — each exchange gets its own isolated channel; a channel error only kills that consumer
-- `subscribe(exchange, handler, { prefetch?: number })` — optional prefetch for work-queue semantics (worker uses `{ prefetch: 1 }`)
-- Apps wire up a thin local adapter: `const publisher: IMessagePublisher = { publish }` — port stays local, primitive is shared
-- `IMessagePublisher` port is LOCAL to each app's `application/ports/` — not in `packages/rabbitmq`
-- Exchange type: `fanout`, `durable: true` for both exchanges
-- Consumer queues: `exclusive: true, autoDelete: true` (ephemeral per process)
-- `nack(msg, false, false)` on errors — rejects without requeue to avoid poison-pill loops
+**Package**: `packages/rabbitmq` (`@distributed-systems/rabbitmq`)
+
+### Exported API
+
+- `publish(exchange, message)` — uses dedicated publisher connection
+- `subscribe(exchange, handler)` — fanout + exclusive + autoDelete → backend WS broadcast
+- `subscribeWork(exchange, queueName, handler, options?)` — fanout + named durable queue + DLQ → worker competing consumers (messages persist, failed go to DLQ)
+- `ConsumerChannels` — channel Map keys (infrastructure only)
+- `QueueNames` — durable queue names (`worker.invoices.created`, `invoices.dead-letter`)
+- `ExchangeNames` — DLX exchange name (`invoices.dlx`)
+
+### Connection model
+
+- Two separate connections: publisher + consumer (failure isolation)
+- `getPublisherChannel()` — single channel for all publishing
+- `getConsumerChannel(id: string)` — one channel per consumer in `Map<string, Channel>`; channel error only kills that consumer
+- On connection error: all channels for that connection are cleared (`channels.clear()`)
+
+### Consumer patterns
+
+- `subscribe()`: `exclusive: true, autoDelete: true` → ephemeral per process, WS broadcast
+- `subscribeWork()`: named durable queue + DLQ:
+  - asserts `invoices.dlx` (direct, durable) + `invoices.dead-letter` queue
+  - main queue has `x-dead-letter-exchange: invoices.dlx`
+  - `nack(msg, false, false)` → message goes to DLQ instead of being lost
+  - `prefetch` defaults to 1
+
+### Layer boundaries (critical)
+
+- `IMessagePublisher` port stays LOCAL to each app's `application/ports/` — not in `packages/rabbitmq`
+- `InvoiceExchanges` stays in `packages/shared` — application-level contracts used by application layer handlers; moving to `packages/rabbitmq` = application → infrastructure layer violation
+- `ConsumerChannels`, `QueueNames`, `ExchangeNames` live in `packages/rabbitmq` — pure infrastructure topology
+
+### Other
+
+- `amqplib` and `@types/amqplib` in `packages/rabbitmq/package.json` — apps do NOT declare them
 - `RABBITMQ_URL` env var, defaults to `amqp://localhost`
-- `amqplib` and `@types/amqplib` are in `packages/rabbitmq/package.json` — apps do NOT declare them directly
+- RabbitMQ Management UI: `http://localhost:15672` (guest/guest) — port 15672 exposed in docker-compose.yml
+
+### Deleted files (consolidated into packages/rabbitmq)
+
+- `apps/backend/src/shared/infrastructure/messaging/` — entire directory removed
+- `apps/worker/src/shared/infrastructure/messaging/rabbitmq.connection.ts` — removed
 
 ## Result<T,E> pattern
 
