@@ -7,7 +7,10 @@ import { QueryKeys } from "#shared/query-keys";
 import { createWebSocket } from "#shared/websocket";
 
 interface InvoiceStatusMessage {
-  type: typeof InvoiceEvents.INPROGRESS | typeof InvoiceEvents.COMPLETED;
+  type:
+    | typeof InvoiceEvents.INPROGRESS
+    | typeof InvoiceEvents.COMPLETED
+    | typeof InvoiceEvents.FAILED;
   invoiceId: number;
 }
 
@@ -30,7 +33,11 @@ export function useInvoiceWebSocket() {
       ws.onmessage = (event: MessageEvent<string>) => {
         const message = JSON.parse(event.data) as InvoiceStatusMessage;
 
-        if (message.type === InvoiceEvents.COMPLETED || message.type === InvoiceEvents.INPROGRESS) {
+        if (
+          message.type === InvoiceEvents.COMPLETED ||
+          message.type === InvoiceEvents.INPROGRESS ||
+          message.type === InvoiceEvents.FAILED
+        ) {
           void queryClient.invalidateQueries({ queryKey: QueryKeys.invoices });
         }
       };

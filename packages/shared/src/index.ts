@@ -2,6 +2,7 @@ export const InvoiceStatus = {
   PENDING: "pending",
   INPROGRESS: "inprogress",
   COMPLETED: "completed",
+  FAILED: "failed",
 } as const;
 
 export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
@@ -22,11 +23,13 @@ export const InvoiceExchanges = {
   CREATED: "invoices.created",
   INPROGRESS: "invoices.inprogress",
   COMPLETED: "invoices.completed",
+  FAILED: "invoices.failed",
 } as const;
 
 export const InvoiceEvents = {
   INPROGRESS: "invoice:inprogress",
   COMPLETED: "invoice:completed",
+  FAILED: "invoice:failed",
 } as const;
 
 export { processFakeInvoice, sleep } from "./utils";

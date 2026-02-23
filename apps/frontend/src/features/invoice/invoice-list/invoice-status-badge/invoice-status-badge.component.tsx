@@ -7,6 +7,7 @@ const STATUS_STYLES: Record<InvoiceStatus, string> = {
     "rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700",
   [InvoiceStatus.COMPLETED]:
     "rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700",
+  [InvoiceStatus.FAILED]: "rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700",
 };
 
 interface Props {

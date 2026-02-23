@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 
 import { startInvoiceCompletedConsumer } from "#modules/invoicing/infrastructure/messaging/invoice-completed.consumer";
+import { startInvoiceFailedConsumer } from "#modules/invoicing/infrastructure/messaging/invoice-failed.consumer";
 import { startInvoiceInProgressConsumer } from "#modules/invoicing/infrastructure/messaging/invoice-inprogress.consumer";
 import { invoiceRoutes } from "#modules/invoicing/presentation/http/invoice.routes";
 import { wsRoutes } from "#modules/invoicing/presentation/http/ws.routes";
@@ -10,6 +11,7 @@ import { wsRoutes } from "#modules/invoicing/presentation/http/ws.routes";
 // respective fanout exchange.
 await startInvoiceInProgressConsumer();
 await startInvoiceCompletedConsumer();
+await startInvoiceFailedConsumer();
 
 const app = new Elysia()
   .get("/health", () => ({ status: "ok" }))

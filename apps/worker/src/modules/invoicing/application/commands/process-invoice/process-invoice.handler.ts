@@ -18,6 +18,22 @@ export async function processInvoiceHandler(
 ): Promise<void> {
   const { invoiceId } = command;
 
+  const invoice = await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
+
+  if (!invoice.name || invoice.amount < 0) {
+    // Mark the invoice as failed in the DB so the UI reflects the error state,
+    // then publish the integration event before rethrowing so the message still
+    // nacks to the DLQ for inspection / replay.
+    await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: { status: InvoiceStatus.FAILED },
+    });
+    await deps.publisher.publish(InvoiceExchanges.FAILED, { invoiceId });
+    throw new Error(
+      `[worker] invalid invoice ${invoiceId}: name="${invoice.name}" amount=${invoice.amount}`,
+    );
+  }
+
   await prisma.invoice.update({
     where: { id: invoiceId },
     data: { status: InvoiceStatus.INPROGRESS },
