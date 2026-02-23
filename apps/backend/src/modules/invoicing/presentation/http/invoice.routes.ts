@@ -1,14 +1,18 @@
 import { Elysia, t } from "elysia";
 
+import { publish } from "@distributed-systems/rabbitmq";
 import { ApiRoutes } from "@distributed-systems/shared";
 
 import { createInvoiceHandler } from "#modules/invoicing/application/commands/create-invoice/create-invoice.handler";
+import type { IMessagePublisher } from "#modules/invoicing/application/ports/message-publisher.port";
 import { listInvoicesHandler } from "#modules/invoicing/application/queries/list-invoices/list-invoices.handler";
 import { prismaInvoiceRepository } from "#modules/invoicing/infrastructure/repositories/prisma-invoice.repository.js";
-import { rabbitMQPublisher } from "#shared/infrastructure/messaging/rabbitmq.publisher";
 
 const repository = prismaInvoiceRepository;
-const publisher = rabbitMQPublisher;
+// Thin local adapter: wraps the shared publish primitive and satisfies the
+// IMessagePublisher port defined in the application layer. The port stays in
+// this app; only the infrastructure primitive lives in @distributed-systems/rabbitmq.
+const publisher: IMessagePublisher = { publish };
 
 export const invoiceRoutes = new Elysia({ prefix: ApiRoutes.INVOICES })
   // GET /invoices — query, no side effects

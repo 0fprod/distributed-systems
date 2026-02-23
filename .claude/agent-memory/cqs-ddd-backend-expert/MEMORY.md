@@ -31,12 +31,17 @@ Key decisions:
 
 ## RabbitMQ conventions
 
+- **Shared package**: `packages/rabbitmq` (`@distributed-systems/rabbitmq`) — exports ONLY `publish` and `subscribe`
+- Two separate connections: publisher connection + consumer connection (RabbitMQ best practice — isolates failure domains)
+- Channel Map for consumers: `getConsumerChannel(id)` — each exchange gets its own isolated channel; a channel error only kills that consumer
+- `subscribe(exchange, handler, { prefetch?: number })` — optional prefetch for work-queue semantics (worker uses `{ prefetch: 1 }`)
+- Apps wire up a thin local adapter: `const publisher: IMessagePublisher = { publish }` — port stays local, primitive is shared
+- `IMessagePublisher` port is LOCAL to each app's `application/ports/` — not in `packages/rabbitmq`
 - Exchange type: `fanout`, `durable: true` for both exchanges
 - Consumer queues: `exclusive: true, autoDelete: true` (ephemeral per process)
-- `channel.prefetch(1)` on worker to process one invoice at a time
 - `nack(msg, false, false)` on errors — rejects without requeue to avoid poison-pill loops
 - `RABBITMQ_URL` env var, defaults to `amqp://localhost`
-- `amqplib` must be added to `dependencies` in each app's `package.json` (not just installed — knip checks declared deps)
+- `amqplib` and `@types/amqplib` are in `packages/rabbitmq/package.json` — apps do NOT declare them directly
 
 ## Result<T,E> pattern
 

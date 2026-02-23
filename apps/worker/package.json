@@ -15,8 +15,7 @@
   },
   "dependencies": {
     "@distributed-systems/database": "workspace:*",
-    "@distributed-systems/shared": "workspace:*",
-    "@types/amqplib": "^0.10.8",
-    "amqplib": "^0.10.9"
+    "@distributed-systems/rabbitmq": "workspace:*",
+    "@distributed-systems/shared": "workspace:*"
   }
 }
