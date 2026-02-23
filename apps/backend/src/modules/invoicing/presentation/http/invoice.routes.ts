@@ -3,12 +3,12 @@ import { Elysia, t } from "elysia";
 import { publish } from "@distributed-systems/rabbitmq";
 import { ApiRoutes } from "@distributed-systems/shared";
 
-import { createInvoiceHandler } from "#modules/invoicing/application/commands/create-invoice/create-invoice.handler";
-import { deleteInvoiceHandler } from "#modules/invoicing/application/commands/delete-invoice/delete-invoice.handler";
-import { retryInvoiceHandler } from "#modules/invoicing/application/commands/retry-invoice/retry-invoice.handler";
-import type { IMessagePublisher } from "#modules/invoicing/application/ports/message-publisher.port";
-import { listInvoicesHandler } from "#modules/invoicing/application/queries/list-invoices/list-invoices.handler";
-import { prismaInvoiceRepository } from "#modules/invoicing/infrastructure/repositories/prisma-invoice.repository";
+import { createInvoiceHandler } from "#invoicing/application/commands/create-invoice/create-invoice.handler";
+import { deleteInvoiceHandler } from "#invoicing/application/commands/delete-invoice/delete-invoice.handler";
+import { retryInvoiceHandler } from "#invoicing/application/commands/retry-invoice/retry-invoice.handler";
+import type { IMessagePublisher } from "#invoicing/application/ports/message-publisher.port";
+import { listInvoicesHandler } from "#invoicing/application/queries/list-invoices/list-invoices.handler";
+import { prismaInvoiceRepository } from "#invoicing/infrastructure/repositories/prisma-invoice.repository";
 
 const repository = prismaInvoiceRepository;
 // Thin local adapter: wraps the shared publish primitive and satisfies the

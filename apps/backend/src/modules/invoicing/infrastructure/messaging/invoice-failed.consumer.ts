@@ -1,7 +1,7 @@
 import { subscribe } from "@distributed-systems/rabbitmq";
 import { InvoiceEvents, InvoiceExchanges } from "@distributed-systems/shared";
 
-import { wsConnections } from "#modules/invoicing/presentation/http/ws.routes";
+import { wsConnections } from "#invoicing/presentation/http/ws.routes";
 
 interface InvoiceFailedPayload {
   invoiceId: number;

@@ -1,8 +1,8 @@
 import { prisma, toDomainInvoice, toDomainInvoices } from "@distributed-systems/database";
 import { InvoiceStatus } from "@distributed-systems/shared";
 
-import { InvoicePersistenceError } from "#modules/invoicing/domain/errors/invoice.errors";
-import type { IInvoiceRepository } from "#modules/invoicing/domain/repositories/invoice.repository.interface";
+import { InvoicePersistenceError } from "#invoicing/domain/errors/invoice.errors";
+import type { IInvoiceRepository } from "#invoicing/domain/repositories/invoice.repository.interface";
 import { err, ok } from "#shared/core/result";
 
 // Concrete repository: translates between the domain model and Prisma's persistence model.

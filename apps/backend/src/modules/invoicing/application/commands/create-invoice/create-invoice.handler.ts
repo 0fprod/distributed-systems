@@ -1,8 +1,8 @@
 import { InvoiceExchanges } from "@distributed-systems/shared";
 
-import type { IMessagePublisher } from "#modules/invoicing/application/ports/message-publisher.port";
-import type { InvoicePersistenceError } from "#modules/invoicing/domain/errors/invoice.errors";
-import type { IInvoiceRepository } from "#modules/invoicing/domain/repositories/invoice.repository.interface";
+import type { IMessagePublisher } from "#invoicing/application/ports/message-publisher.port";
+import type { InvoicePersistenceError } from "#invoicing/domain/errors/invoice.errors";
+import type { IInvoiceRepository } from "#invoicing/domain/repositories/invoice.repository.interface";
 import type { Result } from "#shared/core/result";
 
 import type { CreateInvoiceCommand } from "./create-invoice.command";

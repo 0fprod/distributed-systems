@@ -4,10 +4,8 @@
   "private": true,
   "type": "module",
   "imports": {
-    "#shared/core/result": "./src/shared/core/result.ts",
-    "#modules/invoicing/domain/repositories/invoice.repository.interface": "./src/modules/invoicing/domain/repositories/invoice.repository.interface.ts",
-    "#modules/invoicing/domain/errors/invoice.errors": "./src/modules/invoicing/domain/errors/invoice.errors.ts",
-    "#*": "./src/*"
+    "#invoicing/*": "./src/modules/invoicing/*.ts",
+    "#shared/*": "./src/shared/*.ts"
   },
   "scripts": {
     "dev": "bun run --watch src/index.ts",

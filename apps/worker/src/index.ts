@@ -1,4 +1,4 @@
-import { startInvoiceCreatedConsumer } from "#modules/invoicing/infrastructure/messaging/invoice-created.consumer";
+import { startInvoiceCreatedConsumer } from "#invoicing/infrastructure/messaging/invoice-created.consumer";
 
 await startInvoiceCreatedConsumer();
 

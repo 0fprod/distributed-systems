@@ -1,7 +1,7 @@
 import type { Invoice } from "@distributed-systems/shared";
 
-import type { InvoicePersistenceError } from "#modules/invoicing/domain/errors/invoice.errors";
-import type { IInvoiceRepository } from "#modules/invoicing/domain/repositories/invoice.repository.interface";
+import type { InvoicePersistenceError } from "#invoicing/domain/errors/invoice.errors";
+import type { IInvoiceRepository } from "#invoicing/domain/repositories/invoice.repository.interface";
 import type { Result } from "#shared/core/result";
 
 // Query handler: read-only — never mutates state.

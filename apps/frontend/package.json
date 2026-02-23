@@ -4,13 +4,11 @@
   "private": true,
   "type": "module",
   "imports": {
-    "#shared/query-keys": "./src/shared/query-keys.ts",
-    "#shared/request": "./src/shared/request.ts",
-    "#shared/websocket": "./src/shared/websocket.ts",
-    "#test/http-helpers": "./src/test/http-helpers.ts",
-    "#test/websocket-helpers": "./src/test/websocket-helpers.ts",
-    "#test/query-helpers": "./src/test/query-helpers.ts",
-    "#*": "./src/*"
+    "#features/*": "./src/features/*",
+    "#pages/*": "./src/pages/*",
+    "#shared/*": "./src/shared/*.ts",
+    "#test/*": "./src/test/*.ts",
+    "#app": "./src/app.tsx"
   },
   "scripts": {
     "dev": "vite",

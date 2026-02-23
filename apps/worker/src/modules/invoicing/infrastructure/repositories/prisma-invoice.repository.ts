@@ -1,8 +1,8 @@
 import { prisma, toDomainInvoice } from "@distributed-systems/database";
 
-import { InvoiceWorkerPersistenceError } from "#modules/invoicing/domain/errors/invoice.errors";
-import type { IInvoiceRepository } from "#modules/invoicing/domain/repositories/invoice.repository.interface";
-import { err, ok } from "#modules/shared/core/result";
+import { InvoiceWorkerPersistenceError } from "#invoicing/domain/errors/invoice.errors";
+import type { IInvoiceRepository } from "#invoicing/domain/repositories/invoice.repository.interface";
+import { err, ok } from "#shared/core/result";
 
 // Concrete repository: translates between the domain model and Prisma's persistence model.
 // Using the Result pattern instead of throwing keeps error paths explicit and typed —
