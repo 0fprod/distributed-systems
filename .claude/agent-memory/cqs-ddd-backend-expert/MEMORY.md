@@ -3,127 +3,91 @@
 ## Project: distributed-systems monorepo
 
 Root: `/Users/fran/Workspace/distributed-systems`
-Package manager: bun@1.3.6 workspaces (`apps/*`, `packages/*`)
+Package manager: bun@1.3.6 workspaces (`apps/*`, `packages/*`, `integration-tests`)
 All commands: bun (never npm/npx)
+Full architecture details: see `architecture.md`
 
 ## Domain
 
-**Bounded context**: Invoicing
-**Domain model** (in `packages/shared/src/index.ts`):
+**Bounded context**: Invoicing | **Aggregate root**: `Invoice`
+**Status values**: `pending | inprogress | completed | failed` (`InvoiceStatus` in `@distributed-systems/shared`)
+**Domain model is the API contract** — no separate DTOs.
+**Key rule**: only `FAILED` invoices can be retried (guard in `retryInvoiceHandler`).
 
-- `Invoice { id: number, name: string, amount: number, status: InvoiceStatus }`
-- `InvoiceStatus = "inprogress" | "completed"`
-- No DTOs — domain model IS the contract across all apps
-- Mapper functions: PrismaInvoice → Invoice (in `packages/database`)
+## Subpath Aliases
 
-## Architecture decisions
+Backend `#invoicing/*` → `src/modules/invoicing/*.ts`, `#shared/*` → `src/shared/*.ts`
+Worker `#invoicing/*` → `src/modules/invoicing/*.ts`, `#shared/*` → `src/modules/shared/*.ts`
+Both defined in each app's `package.json` imports AND tsconfig paths.
 
-See `plan.md` for full implementation plan.
+## Database
 
-Key decisions:
+Provider: **MySQL** (NOT SQLite). Dev: `mysql://root:root@localhost:3306/invoices`
+Generated client: `packages/database/src/generated/client` (custom output — Bun doesn't create symlink)
+Barrel: `prisma`, `PrismaClient`, `toDomainInvoice`, `toDomainInvoices` from `@distributed-systems/database`
+Migrations: `packages/database/prisma/migrations/20250101000000_init/migration.sql`
+Note: `packages/database/.env` has local dev URL; integration tests override with container URL.
 
-- Prisma lives in `packages/database` (Option C) — clean separation, both backend and worker import it
-- SQLite for dev (`dev.db` at monorepo root)
-- RabbitMQ fanout exchanges: `invoices.created` (backend→worker) and `invoices.completed` (worker→backend)
-- Backend: ElysiaJS on port 3000; worker: pure RabbitMQ consumer (no HTTP server)
-- Singleton channel pattern: one `amqplib.Channel` per process reused across all operations
-- Exclusive + autoDelete queues for fanout consumers so each instance gets every message
+## RabbitMQ
 
-## RabbitMQ conventions
+Package: `@distributed-systems/rabbitmq`
 
-**Package**: `packages/rabbitmq` (`@distributed-systems/rabbitmq`)
-
-### Exported API
-
-- `publish(exchange, message)` — uses dedicated publisher connection
-- `subscribe(exchange, handler)` — fanout + exclusive + autoDelete → backend WS broadcast
-- `subscribeWork(exchange, queueName, handler, options?)` — fanout + named durable queue + DLQ → worker competing consumers (messages persist, failed go to DLQ)
-- `ConsumerChannels` — channel Map keys (infrastructure only)
-- `QueueNames` — durable queue names (`worker.invoices.created`, `invoices.dead-letter`)
-- `ExchangeNames` — DLX exchange name (`invoices.dlx`)
-
-### Connection model
-
+- `publish(exchange, msg)` — fanout, durable, persistent
+- `subscribe(exchange, handler)` — exclusive+autoDelete queue (WS broadcast: every process gets all msgs)
+- `subscribeWork(exchange, queueName, handler)` — durable named queue + DLQ, prefetch=1 (competing consumers)
+- `InvoiceExchanges` stays in `@distributed-systems/shared` (application contract, not infra)
+- `IMessagePublisher` port is LOCAL to each app's `application/ports/` (bounded context autonomy)
 - Two separate connections: publisher + consumer (failure isolation)
-- `getPublisherChannel()` — single channel for all publishing
-- `getConsumerChannel(id: string)` — one channel per consumer in `Map<string, Channel>`; channel error only kills that consumer
-- On connection error: all channels for that connection are cleared (`channels.clear()`)
+- Retry on connect: exponential backoff, 8 attempts, starting 1000 ms, max 10 000 ms
 
-### Consumer patterns
+## Backend Structure
 
-- `subscribe()`: `exclusive: true, autoDelete: true` → ephemeral per process, WS broadcast
-- `subscribeWork()`: named durable queue + DLQ:
-  - asserts `invoices.dlx` (direct, durable) + `invoices.dead-letter` queue
-  - main queue has `x-dead-letter-exchange: invoices.dlx`
-  - `nack(msg, false, false)` → message goes to DLQ instead of being lost
-  - `prefetch` defaults to 1
+`src/modules/invoicing/application/commands/`: create-invoice, delete-invoice, retry-invoice
+`src/modules/invoicing/application/queries/`: list-invoices
+`src/modules/invoicing/infrastructure/messaging/`: 3 consumers (completed, failed, inprogress) → WS broadcast
+`src/modules/invoicing/presentation/http/`: invoice.routes.ts + ws.routes.ts
+WS: `wsConnections: Set<SendFn>` exported from ws.routes.ts, imported by consumers directly.
+Routes: GET /health, GET /invoices, POST /invoices → 201 {id}, PATCH /invoices/:id, DELETE /invoices/:id → 204
 
-### Layer boundaries (critical)
+## Worker Structure
 
-- `IMessagePublisher` port stays LOCAL to each app's `application/ports/` — not in `packages/rabbitmq`
-- `InvoiceExchanges` stays in `packages/shared` — application-level contracts used by application layer handlers; moving to `packages/rabbitmq` = application → infrastructure layer violation
-- `ConsumerChannels`, `QueueNames`, `ExchangeNames` live in `packages/rabbitmq` — pure infrastructure topology
+`src/index.ts` → `startInvoiceCreatedConsumer()` (no HTTP server)
+`subscribeWork(CREATED, "worker.invoices.created")` → `processInvoiceHandler`
+Flow: findById → validate → INPROGRESS+publish → processFakeInvoice (10s) → COMPLETED+publish
+On failure: mark FAILED in DB, publish FAILED exchange, nack → DLQ
+Worker `#shared/*` maps to `src/modules/shared/` (has its own local Result<T,E> copy)
 
-### Other
+## Result Pattern
 
-- `amqplib` and `@types/amqplib` in `packages/rabbitmq/package.json` — apps do NOT declare them
-- `RABBITMQ_URL` env var, defaults to `amqp://localhost`
-- RabbitMQ Management UI: `http://localhost:15672` (guest/guest) — port 15672 exposed in docker-compose.yml
+`Result<T,E> = { ok: true; value: T } | { ok: false; error: E }` + `ok()` / `err()` constructors
+Backend: `apps/backend/src/shared/core/result.ts`
+Worker: `apps/worker/src/modules/shared/core/result.ts`
 
-### Deleted files (consolidated into packages/rabbitmq)
+## Integration Tests
 
-- `apps/backend/src/shared/infrastructure/messaging/` — entire directory removed
-- `apps/worker/src/shared/infrastructure/messaging/rabbitmq.connection.ts` — removed
+Location: `integration-tests/` (monorepo root workspace, NOT inside apps/)
+Setup: MySqlContainer + RabbitMQContainer → migrate → spawn backend (port 3099) + worker as subprocesses
+Migrations: `Bun.spawnSync(["bun", "x", "prisma", "migrate", "deploy", "--schema", SCHEMA], { cwd: integration-tests/ })`
+Builder: `givenAnInvoice(prisma).withName().withAmount().withStatus().save()`
+Timeouts: beforeAll=90s, end-to-end tests=30s (processFakeInvoice takes 10s)
+Clean state: `ctx.prisma.invoice.deleteMany()` in beforeEach
+PrismaClient: `new PrismaClient({ datasources: { db: { url: mysql.getConnectionUri() } } })`
+Backend port 3099 during tests (avoids conflict with docker-compose port 3000)
 
-## Result<T,E> pattern
+## Elysia Gotchas
 
-Located at `apps/backend/src/shared/core/result.ts`.
+- Use `status(code, body)` from context — NOT `error()` (doesn't exist on Elysia context)
+- Handler functions (not classes): `createInvoiceHandler(command, deps)` with injected deps
+- WS: `wsConnections: Set<SendFn>` + `wsRegistry: Map<object, SendFn>` (ws.raw as key for cleanup)
+- `InvoicePersistenceError`: use `override readonly cause` (ES2022 base class conflict)
+- Barrel files in packages use relative imports (NOT `#*`) — `#*` resolves in consuming tsconfig context
 
-```ts
-export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
-export const ok = <T>(value: T): Result<T, never> => ({ ok: true, value });
-export const err = <E>(error: E): Result<never, E> => ({ ok: false, error });
+## Running the System
+
+```sh
+docker compose up -d mysql rabbitmq
+bun run db:push                                     # apply schema to dev DB
+bun run --filter "@distributed-systems/backend" dev
+bun run --filter "@distributed-systems/worker" dev
+bun test --filter "@distributed-systems/integration-tests"
 ```
-
-Repository methods return `Promise<Result<T, InvoicePersistenceError>>`.
-
-## Elysia gotchas
-
-- Use `status(code, body)` from context (NOT `error()`) for error responses in handlers
-- `error()` does not exist on the Elysia context object — TypeScript will catch this
-- WS: use module-level `Set<SendFn>` + a `Map<object, SendFn>` registry for correct cleanup on close
-- `ws.raw` (type `object`) is the stable key for the registry map
-- ElysiaJS plugin pattern: each route group is a `new Elysia()` instance, composed with `.use()` in `index.ts`
-
-## Class property overrides
-
-- When extending `Error`, `cause` is defined on the base class in ES2022 — must use `override readonly cause`
-- Root `tsconfig.json` likely has `"useUnknownInCatchVariables": true` and strict settings — check before adding `public` fields that shadow builtins
-
-## Conventions
-
-- `#*` alias → `./src/*` in each workspace
-- Import order: third-party → `@distributed-systems/*` → `#*` → relative
-- Named exports only, `import type` for type-only
-- Absolute imports via `#` aliases
-
-## Implementation status
-
-COMPLETE (v2 — RabbitMQ architecture) — all checks pass (typecheck, lint, knip)
-
-## Key implementation decisions (post-plan adjustments)
-
-- Prisma output changed to `src/generated/client` (not `node_modules/.prisma/client`) — Bun does not create the `.prisma/client` symlink inside `@prisma/client`, so TypeScript cannot resolve types via the default mechanism
-- `@prisma/client` removed from `packages/database` dependencies — direct import from `./generated/client` path instead
-- Barrel files (`packages/shared/src/index.ts`, `packages/database/src/index.ts`) use relative imports, NOT `#*` subpath aliases — TypeScript does not resolve `#*` in cross-package dependencies (it resolves in the context of the consuming tsconfig, not the source package)
-- `knip.json` excludes `src/generated/**` from `packages/database` to avoid false positives on Prisma generated files
-- ESLint ignores `**/src/generated/**` to avoid linting Prisma generated JS files
-- WS manager uses a `Set<SendFn>` (where `SendFn = (data: string) => void`) — decouples from Bun's `ServerWebSocket<T>` generic type parameter issues with `exactOptionalPropertyTypes: true`
-- WS routes use a module-level `Map<object, SendFn>` registry to correctly remove send functions on `close`
-- `packages/database/.env` added with `DATABASE_URL="file:./dev.db"` so Prisma CLI finds the env var when run from within the package directory
-
-## Running the system
-
-1. `bun run --filter "@distributed-systems/database" db:push` — creates/updates dev.db
-2. `bun run --filter "@distributed-systems/backend" dev` — starts ElysiaJS on port 3000
-3. `bun run --filter "@distributed-systems/worker" dev` — starts polling worker
