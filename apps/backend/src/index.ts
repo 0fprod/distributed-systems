@@ -7,6 +7,7 @@ import { startInvoiceFailedConsumer } from "#invoicing/infrastructure/messaging/
 import { startInvoiceInProgressConsumer } from "#invoicing/infrastructure/messaging/invoice-inprogress.consumer";
 import { invoiceRoutes } from "#invoicing/presentation/http/invoice.routes";
 import { wsRoutes } from "#invoicing/presentation/http/ws.routes";
+import { userRoutes } from "#users/presentation/http/user.routes";
 
 // Start RabbitMQ consumers before accepting HTTP traffic so no messages are
 // missed during startup.
@@ -17,6 +18,7 @@ await startInvoiceFailedConsumer();
 const app = new Elysia()
   .get(ApiRoutes.HEALTH, () => ({ status: "ok" }))
   .use(invoiceRoutes)
+  .use(userRoutes)
   .use(wsRoutes)
   .listen(Number(process.env.PORT ?? 3000));
 

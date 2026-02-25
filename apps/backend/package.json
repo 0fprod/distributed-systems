@@ -6,6 +6,7 @@
   "imports": {
     "#invoicing/*": "./src/modules/invoicing/*.ts",
     "#shared/*": "./src/shared/*.ts",
+    "#users/*": "./src/modules/users/*.ts",
     "#test/*": "./src/test/*.ts"
   },
   "scripts": {
@@ -19,6 +20,10 @@
     "@distributed-systems/database": "workspace:*",
     "@distributed-systems/rabbitmq": "workspace:*",
     "@distributed-systems/shared": "workspace:*",
+    "bcryptjs": "^3.0.3",
     "elysia": "^1.3.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^3.0.0"
   }
 }

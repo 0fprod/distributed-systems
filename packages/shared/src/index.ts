@@ -1,3 +1,9 @@
+export interface UserData {
+  name: string;
+  email: string;
+  passwordHash: string;
+}
+
 export const InvoiceStatus = {
   PENDING: "pending",
   INPROGRESS: "inprogress",
@@ -17,6 +23,7 @@ export interface Invoice {
 export const ApiRoutes = {
   HEALTH: "/health",
   INVOICES: "/invoices",
+  REGISTER: "/register",
   WS: "/ws",
 } as const;
 
