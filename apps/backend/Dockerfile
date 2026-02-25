@@ -1,38 +1,21 @@
 FROM oven/bun:1.3.6-alpine
 
 WORKDIR /app
+# Toolchain para node-gyp (ssh2)
+RUN apk add --no-cache python3 make g++ git
+ENV PYTHON=/usr/bin/python3
+ENV HUSKY=0
 
-# Copy workspace manifests and lockfile first to leverage Docker layer cache.
-COPY package.json bun.lock bunfig.toml tsconfig.json ./
-COPY apps/backend/package.json ./apps/backend/
-COPY apps/frontend/package.json ./apps/frontend/
-COPY apps/worker/package.json ./apps/worker/
-COPY packages/database/package.json ./packages/database/
-COPY packages/shared/package.json ./packages/shared/
-COPY packages/rabbitmq/package.json ./packages/rabbitmq/
+# Copia TODO el repo (usa .dockerignore para no llevarte node_modules, etc.)
+COPY . .
 
-# Install all workspace dependencies from the root lockfile.
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --verbose
 
-# Explicitly create workspace symlinks with absolute paths.
-# bun install --frozen-lockfile does not reliably create workspace symlinks in Docker.
-RUN mkdir -p /app/node_modules/@distributed-systems && \
-    ln -sfn /app/packages/shared /app/node_modules/@distributed-systems/shared && \
-    ln -sfn /app/packages/database /app/node_modules/@distributed-systems/database && \
-    ln -sfn /app/packages/rabbitmq /app/node_modules/@distributed-systems/rabbitmq
-
-# Copy package sources (symlinks above now resolve to these directories).
-COPY packages/shared/ ./packages/shared/
-COPY packages/database/ ./packages/database/
-COPY packages/rabbitmq/ ./packages/rabbitmq/
-
-COPY apps/backend/ ./apps/backend/
+# (si quieres mantener tus symlinks, puedes dejarlos, pero probablemente ya no hagan falta)
+# ...
 
 WORKDIR /app/apps/backend
-
 EXPOSE 3000
-
 ENV PRISMA_GENERATE_SKIP_AUTOINSTALL=true
 
-# Run db:migrate:deploy to apply pending migrations, then start.
 CMD ["sh", "-c", "bun run --filter '@distributed-systems/database' db:migrate:deploy && bun run src/index.ts"]

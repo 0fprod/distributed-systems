@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "bun test"
+    "test": "bun test --preload ./preload.ts ./tests"
   },
   "dependencies": {
     "@distributed-systems/database": "workspace:*",

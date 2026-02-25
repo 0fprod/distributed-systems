@@ -8,7 +8,7 @@ import { PrismaClient } from "@distributed-systems/database";
 import { ApiRoutes } from "@distributed-systems/shared";
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
-const ROOT = path.join(import.meta.dir, "..");
+const ROOT = path.resolve(import.meta.dir, "../..");
 const SCHEMA = path.join(ROOT, "packages/database/prisma/schema.prisma");
 const BACKEND = path.join(ROOT, "apps/backend");
 const WORKER = path.join(ROOT, "apps/worker");
@@ -42,13 +42,24 @@ async function startRabbitMQ(): Promise<StartedRabbitMQContainer> {
 }
 
 function applyMigrations(databaseUrl: string): void {
-  // cwd: integration-tests/ (no .env here) so Prisma doesn't find
-  // packages/database/.env and override DATABASE_URL with the Docker hostname.
-  const result = Bun.spawnSync(["bun", "x", "prisma", "migrate", "deploy", "--schema", SCHEMA], {
-    cwd: import.meta.dir,
-    env: { ...process.env, DATABASE_URL: databaseUrl },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const result = Bun.spawnSync(
+    [
+      "bun",
+      "run",
+      "--cwd",
+      path.join(ROOT, "packages/database"),
+      "prisma",
+      "migrate",
+      "deploy",
+      "--schema",
+      SCHEMA,
+    ],
+    {
+      cwd: import.meta.dir,
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
 
   if (result.exitCode !== 0) {
     throw new Error(`Migrations failed:\n${new TextDecoder().decode(result.stderr)}`);

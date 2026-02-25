@@ -1,19 +1,17 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "bun:test";
+import { beforeAll, beforeEach, describe, expect, it } from "bun:test";
 
 import type { Invoice } from "@distributed-systems/shared";
 import { ApiRoutes, InvoiceStatus } from "@distributed-systems/shared";
 
-import { givenAnInvoice } from "./builders/invoice.builder";
-import { type Stack, startStack, waitForStatus } from "./setup";
+import { givenAnInvoice } from "../builders/invoice.builder";
+import { type Stack, waitForStatus } from "../setup";
 
 let ctx: Stack;
 
-beforeAll(async () => {
-  ctx = await startStack();
-}, 90_000);
-
-afterAll(async () => {
-  await ctx.teardown();
+beforeAll(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ctx = (globalThis as any).__STACK__ as Stack;
+  if (!ctx) throw new Error("Stack not initialized. Did you forget --preload?");
 });
 
 beforeEach(async () => {
