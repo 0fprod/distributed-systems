@@ -15,6 +15,7 @@ export interface Invoice {
 }
 
 export const ApiRoutes = {
+  HEALTH: "/health",
   INVOICES: "/invoices",
   WS: "/ws",
 } as const;

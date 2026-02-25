@@ -1,0 +1,19 @@
+{
+  "name": "@distributed-systems/integration-tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@distributed-systems/database": "workspace:*",
+    "@distributed-systems/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@testcontainers/mysql": "^10.0.0",
+    "@testcontainers/rabbitmq": "^10.0.0",
+    "testcontainers": "^10.0.0",
+    "dotenv": "^17.3.1"
+  }
+}

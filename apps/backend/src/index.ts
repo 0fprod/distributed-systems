@@ -1,5 +1,7 @@
 import { Elysia } from "elysia";
 
+import { ApiRoutes } from "@distributed-systems/shared";
+
 import { startInvoiceCompletedConsumer } from "#invoicing/infrastructure/messaging/invoice-completed.consumer";
 import { startInvoiceFailedConsumer } from "#invoicing/infrastructure/messaging/invoice-failed.consumer";
 import { startInvoiceInProgressConsumer } from "#invoicing/infrastructure/messaging/invoice-inprogress.consumer";
@@ -13,9 +15,9 @@ await startInvoiceCompletedConsumer();
 await startInvoiceFailedConsumer();
 
 const app = new Elysia()
-  .get("/health", () => ({ status: "ok" }))
+  .get(ApiRoutes.HEALTH, () => ({ status: "ok" }))
   .use(invoiceRoutes)
   .use(wsRoutes)
-  .listen(3000);
+  .listen(Number(process.env.PORT ?? 3000));
 
 console.log(`[backend] running on http://localhost:${app.server?.port}`);

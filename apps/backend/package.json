@@ -5,7 +5,8 @@
   "type": "module",
   "imports": {
     "#invoicing/*": "./src/modules/invoicing/*.ts",
-    "#shared/*": "./src/shared/*.ts"
+    "#shared/*": "./src/shared/*.ts",
+    "#test/*": "./src/test/*.ts"
   },
   "scripts": {
     "dev": "bun run --watch src/index.ts",

@@ -5,7 +5,8 @@
     "lib": ["ES2022"],
     "types": ["bun"],
     "paths": {
-      "#*": ["./src/*"]
+      "#invoicing/*": ["./src/modules/invoicing/*"],
+      "#shared/*": ["./src/modules/shared/*"]
     },
     "outDir": "dist",
     "rootDir": "src"
