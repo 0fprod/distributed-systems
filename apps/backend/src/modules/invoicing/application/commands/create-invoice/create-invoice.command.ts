@@ -4,4 +4,8 @@
 export interface CreateInvoiceCommand {
   readonly name: string;
   readonly amount: number;
+  // Owner of the invoice — always the authenticated user. The presentation
+  // layer extracts this from the JWT and stamps it on the command so that
+  // no invoice can exist without an owner.
+  readonly userId: number;
 }

@@ -3,4 +3,5 @@
 // and update the record in the write model.
 export interface ProcessInvoiceCommand {
   readonly invoiceId: number;
+  readonly userId: number;
 }

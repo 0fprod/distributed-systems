@@ -8,6 +8,7 @@ import { type Stack, loginAs, waitForStatus } from "../setup";
 
 let ctx: Stack;
 let sessionCookie: string;
+let userId: number;
 
 beforeAll(() => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,8 +19,19 @@ beforeAll(() => {
 beforeEach(async () => {
   await ctx.prisma.invoice.deleteMany();
   await ctx.prisma.user.deleteMany();
-  // Obtain a fresh session cookie for every test to ensure a clean auth state.
-  sessionCookie = await loginAs(ctx.baseUrl, "test@example.com", "secret123");
+
+  // Create the user directly in DB via the builder (avoids going through HTTP /register).
+  // The builder stores passwords as-is in the passwordHash field, but login goes through
+  // the HTTP stack which uses bcrypt — so we register via HTTP to get a properly hashed password,
+  // and then use the builder only for invoice ownership (userId).
+  await fetch(`${ctx.baseUrl}${ApiRoutes.REGISTER}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "Test User", email: "test@example.com", password: "secret123" }),
+  });
+
+  // Obtain a fresh session cookie and userId for every test.
+  ({ cookie: sessionCookie, userId } = await loginAs(ctx.baseUrl, "test@example.com", "secret123"));
 });
 
 describe("Invoice integration", () => {
@@ -55,7 +67,7 @@ describe("Invoice integration", () => {
 
   it("deletes an invoice", async () => {
     // Arrange
-    const invoice = await givenAnInvoice(ctx.prisma).save();
+    const invoice = await givenAnInvoice(ctx.prisma).forUser(userId).save();
 
     // Act
     const deleteRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}/${invoice.id}`, {
@@ -76,6 +88,7 @@ describe("Invoice integration", () => {
   it("updates a failed invoice and reprocesses it", async () => {
     // Arrange
     const failed = await givenAnInvoice(ctx.prisma)
+      .forUser(userId)
       .withName("Bad Name")
       .withAmount(-1)
       .withStatus(InvoiceStatus.FAILED)
@@ -108,7 +121,10 @@ describe("Invoice integration", () => {
 
   it("rejects patch when invoice is not in failed status", async () => {
     // Arrange
-    const completed = await givenAnInvoice(ctx.prisma).withStatus(InvoiceStatus.COMPLETED).save();
+    const completed = await givenAnInvoice(ctx.prisma)
+      .forUser(userId)
+      .withStatus(InvoiceStatus.COMPLETED)
+      .save();
 
     // Act
     const patchRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}/${completed.id}`, {
@@ -120,4 +136,42 @@ describe("Invoice integration", () => {
     // Assert
     expect(patchRes.status).toBe(400);
   }, 10_000);
+
+  it("user A cannot see invoices belonging to user B", async () => {
+    // Arrange — register and login user B.
+    await fetch(`${ctx.baseUrl}${ApiRoutes.REGISTER}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Other User",
+        email: "other@example.com",
+        password: "secret456",
+      }),
+    });
+    const { cookie: cookieB, userId: userIdB } = await loginAs(
+      ctx.baseUrl,
+      "other@example.com",
+      "secret456",
+    );
+
+    // User B has one invoice; the primary user (A) has none yet.
+    await givenAnInvoice(ctx.prisma).forUser(userIdB).withName("B Invoice").save();
+
+    // Act — user A lists their invoices.
+    const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
+      headers: { Cookie: sessionCookie },
+    });
+    const invoicesA = (await listRes.json()) as Invoice[];
+
+    // Assert — user A sees nothing (invoice belongs to B).
+    expect(invoicesA).toHaveLength(0);
+
+    // Sanity check — user B sees their own invoice.
+    const listResB = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
+      headers: { Cookie: cookieB },
+    });
+    const invoicesB = (await listResB.json()) as Invoice[];
+    expect(invoicesB).toHaveLength(1);
+    expect(invoicesB[0]).toMatchObject({ name: "B Invoice" });
+  }, 15_000);
 });

@@ -12,7 +12,13 @@ export const prismaInvoiceRepository: IInvoiceRepository = {
   async save(data) {
     try {
       const raw = await prisma.invoice.create({
-        data: { name: data.name, amount: data.amount, status: InvoiceStatus.PENDING },
+        // userId links the invoice to its owner — enforced at the DB level (NOT NULL + FK).
+        data: {
+          name: data.name,
+          amount: data.amount,
+          status: InvoiceStatus.PENDING,
+          userId: data.userId,
+        },
       });
       return ok(toDomainInvoice(raw));
     } catch (e) {
@@ -29,9 +35,13 @@ export const prismaInvoiceRepository: IInvoiceRepository = {
     }
   },
 
-  async findAll() {
+  async findAll(userId) {
     try {
-      const raws = await prisma.invoice.findMany({ orderBy: { createdAt: "desc" } });
+      // Scope the query to the requesting user's invoices only.
+      const raws = await prisma.invoice.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      });
       return ok(toDomainInvoices(raws));
     } catch (e) {
       return err(new InvoicePersistenceError("Failed to list invoices", e));

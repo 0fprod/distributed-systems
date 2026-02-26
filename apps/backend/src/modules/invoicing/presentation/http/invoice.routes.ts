@@ -23,9 +23,9 @@ const jwtSecret = process.env.JWT_SECRET ?? "supersecret_changeme";
 
 export const invoiceRoutes = new Elysia({ prefix: ApiRoutes.INVOICES })
   .use(authPlugin({ jwtSecret }))
-  // GET /invoices — query, no side effects
-  .get("/", async ({ status }) => {
-    const result = await listInvoicesHandler(repository);
+  // GET /invoices — query, no side effects; scoped to the authenticated user
+  .get("/", async ({ status, currentUser }) => {
+    const result = await listInvoicesHandler(repository, currentUser.userId);
 
     if (!result.ok) {
       return status(500, { message: result.error.message });
@@ -36,8 +36,13 @@ export const invoiceRoutes = new Elysia({ prefix: ApiRoutes.INVOICES })
   // POST /invoices — command, returns { id } only (CQS: no domain data returned)
   .post(
     "/",
-    async ({ body, status }) => {
-      const createInvoiceCommand = { name: body.name, amount: body.amount };
+    async ({ body, status, currentUser }) => {
+      // Stamp the authenticated user as the owner — no invoice can exist without one.
+      const createInvoiceCommand = {
+        name: body.name,
+        amount: body.amount,
+        userId: currentUser.userId,
+      };
       const deps = { repository, publisher };
 
       const result = await createInvoiceHandler(createInvoiceCommand, deps);

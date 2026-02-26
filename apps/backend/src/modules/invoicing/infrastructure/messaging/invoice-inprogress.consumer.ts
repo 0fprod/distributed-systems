@@ -5,13 +5,15 @@ import { wsConnections } from "#invoicing/presentation/http/ws.routes";
 
 interface InvoiceInProgressPayload {
   invoiceId: number;
+  userId: number;
 }
 
 function isInvoiceInProgressPayload(v: unknown): v is InvoiceInProgressPayload {
   return (
     typeof v === "object" &&
     v !== null &&
-    typeof (v as Record<string, unknown>).invoiceId === "number"
+    typeof (v as Record<string, unknown>).invoiceId === "number" &&
+    typeof (v as Record<string, unknown>).userId === "number"
   );
 }
 
@@ -31,8 +33,11 @@ export async function startInvoiceInProgressConsumer(): Promise<void> {
       invoiceId: payload.invoiceId,
     });
 
-    for (const send of wsConnections) {
-      send(message);
+    const send = wsConnections.get(payload.userId);
+    if (send) {
+      for (const s of send) {
+        s(message);
+      }
     }
 
     console.log(`[consumer] broadcasted invoice:inprogress for invoiceId=${payload.invoiceId}`);

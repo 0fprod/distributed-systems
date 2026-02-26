@@ -15,6 +15,7 @@ Full architecture details: see `architecture.md`
 **Status values**: `pending | inprogress | completed | failed` (`InvoiceStatus` in `@distributed-systems/shared`)
 **Domain model is the API contract** — no separate DTOs.
 **Key rule**: only `FAILED` invoices can be retried (guard in `retryInvoiceHandler`).
+**Ownership**: Invoice.userId is NOT NULL — every invoice must have an owner. `save()` and `findAll(userId)` on IInvoiceRepository are scoped by userId. Presentation layer extracts userId from `currentUser` (injected by authPlugin).
 
 ## Subpath Aliases
 
@@ -75,8 +76,8 @@ Worker: `apps/worker/src/modules/shared/core/result.ts`
 Location: `tests/integration/` (monorepo root, NOT `integration-tests/`)
 Setup: MySqlContainer + RabbitMQContainer → migrate → spawn backend (port 3099) + worker as subprocesses
 Migrations: `Bun.spawnSync(["bun", "run", "--cwd", "packages/database", "prisma", "migrate", "deploy", ...], ...)`
-Builder: `givenAnInvoice(prisma).withName().withAmount().withStatus().save()`
-Auth helper: `loginAs(baseUrl, email, password): Promise<string>` → returns "session=<token>" cookie string
+Builder: `givenAnInvoice(prisma).forUser(userId).withName().withAmount().withStatus().save()` — `.forUser()` is required (userId NOT NULL)
+Auth helpers: `loginAs(url, email, pw)` → cookie string; `getUserId(url, cookie)` → numeric userId via GET /me
 Timeouts: beforeAll=90s, end-to-end tests=30s (processFakeInvoice takes 10s)
 Clean state: `ctx.prisma.invoice.deleteMany()` + `ctx.prisma.user.deleteMany()` in beforeEach (invoice tests)
 PrismaClient: `new PrismaClient({ datasources: { db: { url: mysql.getConnectionUri() } } })`

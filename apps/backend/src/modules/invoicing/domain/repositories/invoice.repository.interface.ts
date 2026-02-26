@@ -9,9 +9,15 @@ import type { InvoicePersistenceError } from "../errors/invoice.errors";
 // The infrastructure layer provides the concrete implementation.
 // Only aggregate roots have repositories; Invoice IS the aggregate root here.
 export interface IInvoiceRepository {
-  save(data: { name: string; amount: number }): Promise<Result<Invoice, InvoicePersistenceError>>;
+  // userId is required — no invoice can be created without an owner.
+  save(data: {
+    name: string;
+    amount: number;
+    userId: number;
+  }): Promise<Result<Invoice, InvoicePersistenceError>>;
   update(invoice: Invoice): Promise<Result<Invoice, InvoicePersistenceError>>;
   findById(id: number): Promise<Result<Invoice | null, InvoicePersistenceError>>;
-  findAll(): Promise<Result<Invoice[], InvoicePersistenceError>>;
+  // userId scopes the result: each caller only receives their own invoices.
+  findAll(userId: number): Promise<Result<Invoice[], InvoicePersistenceError>>;
   deleteById(id: number): Promise<Result<void, InvoicePersistenceError>>;
 }

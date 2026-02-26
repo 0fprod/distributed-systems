@@ -25,7 +25,7 @@ const app = new Elysia()
   .use(invoiceRoutes)
   .use(userRoutes)
   .use(authRoutes({ jwtSecret }))
-  .use(wsRoutes)
+  .use(wsRoutes(jwtSecret))
   .listen({ port: Number(process.env.PORT ?? 3000), hostname: "0.0.0.0" });
 
 console.log(`[backend] running on http://0.0.0.0:${app.server?.port}`);

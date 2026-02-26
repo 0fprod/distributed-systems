@@ -8,8 +8,11 @@ import type { Result } from "#shared/core/result";
 // CQS compliance: this function has no side effects; it only retrieves data.
 // Query handlers may use optimised read models in more complex systems;
 // here the write model is simple enough that the same repository suffices.
+//
+// userId scopes the result set so that each user only sees their own invoices.
 export async function listInvoicesHandler(
   repository: IInvoiceRepository,
+  userId: number,
 ): Promise<Result<Invoice[], InvoicePersistenceError>> {
-  return repository.findAll();
+  return repository.findAll(userId);
 }

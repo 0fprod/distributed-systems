@@ -14,7 +14,11 @@ export async function createInvoiceHandler(
   command: CreateInvoiceCommand,
   deps: { repository: IInvoiceRepository; publisher: IMessagePublisher },
 ): Promise<Result<{ id: number }, InvoicePersistenceError>> {
-  const result = await deps.repository.save({ name: command.name, amount: command.amount });
+  const result = await deps.repository.save({
+    name: command.name,
+    amount: command.amount,
+    userId: command.userId,
+  });
 
   if (!result.ok) return result;
 
@@ -22,7 +26,10 @@ export async function createInvoiceHandler(
 
   // Publish integration event to notify downstream consumers (worker).
   // "invoices.created" is a fanout exchange — the worker will process the invoice.
-  await deps.publisher.publish(InvoiceExchanges.CREATED, { invoiceId: invoice.id });
+  await deps.publisher.publish(InvoiceExchanges.CREATED, {
+    invoiceId: invoice.id,
+    userId: command.userId,
+  });
 
   return { ok: true, value: { id: invoice.id } };
 }

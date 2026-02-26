@@ -5,13 +5,15 @@ import { wsConnections } from "#invoicing/presentation/http/ws.routes";
 
 interface InvoiceCompletedPayload {
   invoiceId: number;
+  userId: number;
 }
 
 function isInvoiceCompletedPayload(v: unknown): v is InvoiceCompletedPayload {
   return (
     typeof v === "object" &&
     v !== null &&
-    typeof (v as Record<string, unknown>).invoiceId === "number"
+    typeof (v as Record<string, unknown>).invoiceId === "number" &&
+    typeof (v as Record<string, unknown>).userId === "number"
   );
 }
 
@@ -28,8 +30,11 @@ export async function startInvoiceCompletedConsumer(): Promise<void> {
 
     const message = JSON.stringify({ type: InvoiceEvents.COMPLETED, invoiceId: payload.invoiceId });
 
-    for (const send of wsConnections) {
-      send(message);
+    const send = wsConnections.get(payload.userId);
+    if (send) {
+      for (const s of send) {
+        s(message);
+      }
     }
 
     console.log(`[consumer] broadcasted invoice:completed for invoiceId=${payload.invoiceId}`);

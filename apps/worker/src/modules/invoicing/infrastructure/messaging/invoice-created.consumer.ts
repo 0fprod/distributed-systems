@@ -1,19 +1,23 @@
 import { QueueNames, subscribeWork } from "@distributed-systems/rabbitmq";
 import { InvoiceExchanges } from "@distributed-systems/shared";
 
-import { processInvoiceHandler } from "../../application/commands/process-invoice/process-invoice.handler";
-import { prismaInvoiceRepository } from "../repositories/prisma-invoice.repository";
+import { processInvoiceHandler } from "#invoicing/application/commands/process-invoice/process-invoice.handler";
+import { prismaInvoiceRepository } from "#invoicing/infrastructure/repositories/prisma-invoice.repository";
+import { prismaUserRepository } from "#invoicing/infrastructure/repositories/prisma-user.repository";
+
 import { invoicePublisher } from "./invoice-publisher";
 
 interface InvoiceCreatedPayload {
   invoiceId: number;
+  userId: number;
 }
 
 function isInvoiceCreatedPayload(v: unknown): v is InvoiceCreatedPayload {
   return (
     typeof v === "object" &&
     v !== null &&
-    typeof (v as Record<string, unknown>).invoiceId === "number"
+    typeof (v as Record<string, unknown>).invoiceId === "number" &&
+    typeof (v as Record<string, unknown>).userId === "number"
   );
 }
 
@@ -37,8 +41,12 @@ export async function startInvoiceCreatedConsumer(): Promise<void> {
         throw new Error("invalid payload");
       }
 
-      const processInvoiceCommand = { invoiceId: payload.invoiceId };
-      const deps = { publisher: invoicePublisher, repository: prismaInvoiceRepository };
+      const processInvoiceCommand = { invoiceId: payload.invoiceId, userId: payload.userId };
+      const deps = {
+        publisher: invoicePublisher,
+        invoiceRepository: prismaInvoiceRepository,
+        userRepository: prismaUserRepository,
+      };
 
       await processInvoiceHandler(processInvoiceCommand, deps);
     },

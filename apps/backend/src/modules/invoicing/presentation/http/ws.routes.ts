@@ -2,33 +2,46 @@ import { Elysia } from "elysia";
 
 import { ApiRoutes } from "@distributed-systems/shared";
 
-// Module-level set of send functions — one per connected WebSocket client.
-// Using a plain Set<fn> (not a class) is intentional: it's the simplest structure
-// that solves the problem. The consumer imports this set directly to broadcast.
-// SendFn accepts a pre-serialised string to avoid coupling to Bun's generic WS type.
+import { authPlugin } from "#shared/plugins/auth.plugin";
+
+// Map of userId → set of send functions, one per active WS connection for that user.
+// Using a Map<userId, Set<SendFn>> instead of a flat Set so consumers can route
+// events only to the owner of the invoice, not broadcast to everyone.
 type SendFn = (data: string) => void;
 
-export const wsConnections = new Set<SendFn>();
+export const wsConnections = new Map<number, Set<SendFn>>();
 
-export const wsRoutes = new Elysia().ws(ApiRoutes.WS, {
-  open(ws) {
-    // Capture ws.send as a closure so the consumer doesn't need the ws object.
-    const send: SendFn = (data) => ws.send(data);
-    wsConnections.add(send);
-    // Store the send fn keyed by the raw ws object for removal on close.
-    wsRegistry.set(ws.raw, send);
-  },
-  close(ws) {
-    const send = wsRegistry.get(ws.raw);
-    if (send) {
-      wsConnections.delete(send);
-      wsRegistry.delete(ws.raw);
-    }
-  },
-  message(_ws, _message) {
-    // No client→server messages expected in this protocol.
-  },
-});
+// Registry to map the raw WS object back to { userId, send } for cleanup on close.
+const wsRegistry = new Map<object, { userId: number; send: SendFn }>();
 
-// Registry to map the raw WS object back to its send fn for cleanup on close.
-const wsRegistry = new Map<object, SendFn>();
+// wsRoutes is a factory so the jwtSecret can be injected from index.ts,
+// keeping process.env reads centralised — same pattern as authRoutes.
+export function wsRoutes(jwtSecret: string) {
+  return new Elysia().use(authPlugin({ jwtSecret })).ws(ApiRoutes.WS, {
+    open(ws) {
+      const userId = ws.data.currentUser.userId;
+      const send: SendFn = (data) => ws.send(data);
+
+      // Register the send fn under the user's id.
+      if (!wsConnections.has(userId)) wsConnections.set(userId, new Set());
+      wsConnections.get(userId)!.add(send);
+
+      // Store both userId and send so close() can remove the right entry.
+      wsRegistry.set(ws.raw, { userId, send });
+    },
+    close(ws) {
+      const entry = wsRegistry.get(ws.raw);
+      if (entry) {
+        const { userId, send } = entry;
+        const userSends = wsConnections.get(userId);
+        userSends?.delete(send);
+        // Clean up the Map entry entirely if the user has no more connections.
+        if (userSends?.size === 0) wsConnections.delete(userId);
+        wsRegistry.delete(ws.raw);
+      }
+    },
+    message(_ws, _message) {
+      // No client→server messages expected in this protocol.
+    },
+  });
+}

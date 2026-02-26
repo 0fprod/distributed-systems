@@ -185,16 +185,19 @@ export async function startStack(): Promise<Stack> {
 // Auth helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Registers a user and returns the session cookie string (format: "session=<token>")
-// that can be passed in a Cookie header for subsequent authenticated requests.
-export async function loginAs(baseUrl: string, email: string, password: string): Promise<string> {
-  // Ensure the user exists (idempotent — ignores duplicate email errors).
-  await fetch(`${baseUrl}${ApiRoutes.REGISTER}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: "Test User", email, password }),
-  });
+export interface LoginResult {
+  cookie: string;
+  userId: number;
+}
 
+// Logs in with the given credentials and returns the session cookie and userId.
+// The user must already exist in the database before calling this — use
+// givenAUser(prisma).save() or POST /register to create them first.
+export async function loginAs(
+  baseUrl: string,
+  email: string,
+  password: string,
+): Promise<LoginResult> {
   const loginRes = await fetch(`${baseUrl}${ApiRoutes.LOGIN}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -202,14 +205,23 @@ export async function loginAs(baseUrl: string, email: string, password: string):
   });
 
   if (!loginRes.ok) {
-    throw new Error(`Login failed: ${loginRes.status}`);
+    throw new Error(`Login failed for ${email}: ${loginRes.status}`);
   }
 
   const setCookie = loginRes.headers.get("set-cookie");
   if (!setCookie) throw new Error("No Set-Cookie header in login response");
 
-  // Return only the cookie name=value portion (strip attributes like Path, HttpOnly, etc.)
-  return setCookie.split(";")[0]!;
+  // Strip cookie attributes (Path, HttpOnly, etc.) — keep only name=value.
+  const cookie = setCookie.split(";")[0]!;
+
+  const meRes = await fetch(`${baseUrl}${ApiRoutes.ME}`, {
+    headers: { Cookie: cookie },
+  });
+  if (!meRes.ok) throw new Error(`GET /me failed: ${meRes.status}`);
+
+  const { id: userId } = (await meRes.json()) as { id: number; email: string };
+
+  return { cookie, userId };
 }
 
 export async function waitForStatus(

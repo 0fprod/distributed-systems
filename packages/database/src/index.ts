@@ -4,3 +4,4 @@
 export { prisma } from "./client";
 export { PrismaClient } from "./generated/client";
 export { toDomainInvoice, toDomainInvoices } from "./invoice/invoice.mapper";
+export { toDomainUser } from "./user/user.mapper";

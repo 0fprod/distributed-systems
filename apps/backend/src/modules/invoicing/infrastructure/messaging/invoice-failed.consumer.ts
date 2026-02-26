@@ -5,13 +5,15 @@ import { wsConnections } from "#invoicing/presentation/http/ws.routes";
 
 interface InvoiceFailedPayload {
   invoiceId: number;
+  userId: number;
 }
 
 function isInvoiceFailedPayload(v: unknown): v is InvoiceFailedPayload {
   return (
     typeof v === "object" &&
     v !== null &&
-    typeof (v as Record<string, unknown>).invoiceId === "number"
+    typeof (v as Record<string, unknown>).invoiceId === "number" &&
+    typeof (v as Record<string, unknown>).userId === "number"
   );
 }
 
@@ -28,8 +30,11 @@ export async function startInvoiceFailedConsumer(): Promise<void> {
 
     const message = JSON.stringify({ type: InvoiceEvents.FAILED, invoiceId: payload.invoiceId });
 
-    for (const send of wsConnections) {
-      send(message);
+    const send = wsConnections.get(payload.userId);
+    if (send) {
+      for (const s of send) {
+        s(message);
+      }
     }
 
     console.log(`[consumer] broadcasted invoice:failed for invoiceId=${payload.invoiceId}`);
