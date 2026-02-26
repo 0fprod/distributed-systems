@@ -82,16 +82,43 @@ async function startBackend(
     stderr: "pipe",
   });
 
+  // Forward backend output inline so logs appear synchronously in test output
+  // proc.stdout.pipeTo(
+  //   new WritableStream({
+  //     write: (chunk) => void process.stdout.write(`[backend] ${new TextDecoder().decode(chunk)}`),
+  //   }),
+  // );
+  // proc.stderr.pipeTo(
+  //   new WritableStream({
+  //     write: (chunk) =>
+  //       void process.stderr.write(`[backend:err] ${new TextDecoder().decode(chunk)}`),
+  //   }),
+  // );
+
   return { url: `http://localhost:${port}`, process: proc };
 }
 
 function startWorker(databaseUrl: string, rabbitmqUrl: string): ReturnType<typeof Bun.spawn> {
-  return Bun.spawn(["bun", "run", "src/index.ts"], {
+  const proc = Bun.spawn(["bun", "run", "src/index.ts"], {
     cwd: WORKER,
     env: { ...process.env, DATABASE_URL: databaseUrl, RABBITMQ_URL: rabbitmqUrl },
     stdout: "pipe",
     stderr: "pipe",
   });
+
+  // proc.stdout.pipeTo(
+  //   new WritableStream({
+  //     write: (chunk) => void process.stdout.write(`[worker] ${new TextDecoder().decode(chunk)}`),
+  //   }),
+  // );
+  // proc.stderr.pipeTo(
+  //   new WritableStream({
+  //     write: (chunk) =>
+  //       void process.stderr.write(`[worker:err] ${new TextDecoder().decode(chunk)}`),
+  //   }),
+  // );
+
+  return proc;
 }
 
 async function waitUntilBackendReady(url: string, timeoutMs = 15_000): Promise<void> {

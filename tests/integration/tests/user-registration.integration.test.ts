@@ -47,7 +47,7 @@ describe("User registration", () => {
     });
 
     // Assert
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
     const body = (await res.json()) as { message: string };
     expect(body.message).toContain("6");
   }, 10_000);

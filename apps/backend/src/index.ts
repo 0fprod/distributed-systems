@@ -20,6 +20,15 @@ const app = new Elysia()
   .use(invoiceRoutes)
   .use(userRoutes)
   .use(wsRoutes)
-  .listen(Number(process.env.PORT ?? 3000));
+  .listen({ port: Number(process.env.PORT ?? 3000), hostname: "0.0.0.0" });
 
-console.log(`[backend] running on http://localhost:${app.server?.port}`);
+console.log(`[backend] running on http://0.0.0.0:${app.server?.port}`);
+
+process.on("SIGTERM", () => {
+  app.stop();
+  process.exit(0);
+});
+process.on("SIGINT", () => {
+  app.stop();
+  process.exit(0);
+});
