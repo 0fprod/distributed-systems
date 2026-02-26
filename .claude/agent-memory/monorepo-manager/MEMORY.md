@@ -1,6 +1,6 @@
 # Monorepo Manager — Project Memory
 
-Last updated: 2026-02-25
+Last updated: 2026-02-26
 
 Root: `/Users/fran/Workspace/distributed-systems`
 
@@ -32,16 +32,17 @@ distributed-systems/
 │   ├── database/         # @distributed-systems/database — Prisma client + mappers
 │   ├── rabbitmq/         # @distributed-systems/rabbitmq — amqplib wrappers
 │   └── shared/           # @distributed-systems/shared   — domain types, enums, routes
-└── integration-tests/    # @distributed-systems/integration-tests — testcontainers suites
+└── tests/
+    └── integration/      # @distributed-systems/integration-tests — testcontainers suites
 ```
 
 Root `package.json` workspaces field:
 
 ```json
-"workspaces": ["apps/*", "packages/*", "integration-tests"]
+"workspaces": ["apps/*", "packages/*", "tests/integration"]
 ```
 
-`integration-tests` is listed as a bare path (not a glob) because it is a single directory at the root, not nested under a common parent.
+`tests/integration` is listed as a bare path (not a glob) because it is a single directory nested under `tests/`, not under a common workspace parent.
 
 ---
 
@@ -181,17 +182,18 @@ Bun auto-loads the root `.env`. Must always be MySQL format — if it were SQLit
 
 ### Location
 
-`/Users/fran/Workspace/distributed-systems/integration-tests/`
+`/Users/fran/Workspace/distributed-systems/tests/integration/`
 
 ### Files
 
 ```
-integration-tests/
+tests/integration/
   package.json
-  setup.ts                         # startStack(), waitForStatus() exports
-  builders/
-    invoice.builder.ts             # givenAnInvoice(prisma) fluent builder
-  invoice.integration.test.ts      # test suite
+  setup.ts          # startStack(), waitForStatus() exports
+  preload.ts
+  tests/
+    invoice.integration.test.ts
+    user-registration.integration.test.ts
 ```
 
 ### Dependencies
@@ -213,7 +215,7 @@ integration-tests/
 
 1. `MySqlContainer("mysql:8.0")` named `integration-mysql` with database `invoices_test`
 2. `RabbitMQContainer("rabbitmq:3-management")` named `integration-rabbitmq`
-3. `prisma migrate deploy` via `Bun.spawnSync` with `cwd: import.meta.dir` (no `.env` in `integration-tests/`)
+3. `prisma migrate deploy` via `Bun.spawnSync` with `cwd: import.meta.dir` (no `.env` in `tests/integration/`)
 4. Backend spawned via `Bun.spawn` on port **3099** (not 3000 — avoids docker-compose conflict)
 5. Worker spawned via `Bun.spawn`
 6. `PrismaClient` instance pointing at the testcontainer URL for DB assertions
@@ -225,7 +227,7 @@ Backend uses **3099** during integration tests. Docker Compose uses 3000. Runnin
 
 ### Prisma Migration cwd Gotcha
 
-`cwd: import.meta.dir` (`integration-tests/`) has no `.env`, so Prisma does NOT load `packages/database/.env` and override `DATABASE_URL` back to `mysql:3306` (the Docker hostname). Without this, migrations would target the wrong host.
+`cwd: import.meta.dir` (`tests/integration/`) has no `.env`, so Prisma does NOT load `packages/database/.env` and override `DATABASE_URL` back to `mysql:3306` (the Docker hostname). Without this, migrations would target the wrong host.
 
 ### Named Containers Gotcha
 
@@ -240,8 +242,8 @@ givenAnInvoice(prisma).withName("...").withAmount(123).withStatus(InvoiceStatus.
 ### Running Integration Tests
 
 ```sh
-# from integration-tests/ directory:
-bun test
+# from tests/integration/ directory (or via root --filter):
+bun test --preload ./preload.ts ./tests
 ```
 
 ---
@@ -256,13 +258,13 @@ Backend and worker have `restart: on-failure`. If MySQL isn't running, they loop
 
 ## Common Gotchas
 
-1. **Bun workspace symlinks in Docker** — `bun install --frozen-lockfile` does not create workspace symlinks. Always add explicit `ln -sfn` after `bun install` in Dockerfiles.
+1. **Docker build uses `COPY . .`** — All Dockerfiles copy the full monorepo tree and then run `bun install --frozen-lockfile`. Workspace symlinks are resolved correctly this way. Manual `ln -sfn` steps are no longer needed. All images also require `apk add python3 make g++ git` before `bun install` for native modules (ssh2). Set `ENV HUSKY=0` to prevent the prepare hook from running inside the image.
 
 2. **Prisma client location** — generated at `packages/database/src/generated/client`. If imports fail, run `bun run db:generate`.
 
 3. **MySQL format in root .env** — Bun auto-loads it. SQLite format (`file:...`) causes Prisma validation failure.
 
-4. **Integration test port 3099** — hardcoded in `integration-tests/setup.ts` to avoid docker-compose conflict on 3000.
+4. **Integration test port 3099** — hardcoded in `tests/integration/setup.ts` to avoid docker-compose conflict on 3000.
 
 5. **`.ts` extension in subpath import wildcards** — required for Bun test runner. Without it, module resolution fails.
 

@@ -18,44 +18,29 @@ Scope prefix: `@distributed-systems`
 
 `amqplib` and `@types/amqplib` are dependencies of `packages/rabbitmq` — NOT of individual apps.
 
-### Adding a new `packages/*` workspace — required Dockerfile changes
+### Simplified build approach: `COPY . .` + `bun install`
 
-Whenever a new workspace package is added, ALL Dockerfiles must be updated **before** `bun install --frozen-lockfile`. The lockfile already references the new manifest so `bun install` fails if the manifest is missing.
+All three Dockerfiles now use `COPY . .` to copy the entire monorepo into the image, then run `bun install --frozen-lockfile`. Manual symlink creation is no longer needed — Bun resolves workspace symlinks correctly when the full monorepo tree is present.
 
-**Every Dockerfile** (backend, worker, frontend):
+Do NOT revert to the old pattern of copying individual `package.json` files one by one followed by manual `ln -sfn` symlink steps. That approach is obsolete.
 
-```dockerfile
-COPY packages/<name>/package.json ./packages/<name>/
-```
+Adding a new `packages/*` workspace no longer requires Dockerfile changes — `COPY . .` includes every new directory automatically.
 
-**Backend and worker only** — also add symlink and source copy:
+### Python toolchain required for native modules (ssh2)
 
-```dockerfile
-ln -sfn /app/packages/<name> /app/node_modules/@distributed-systems/<name>
-COPY packages/<name>/ ./packages/<name>/
-```
-
-Frontend only needs the manifest copy (bun.lock references it but frontend doesn't import it directly).
-
-### Workspace symlinks must be created manually
-
-`bun install --frozen-lockfile` inside Docker does NOT create workspace symlinks reliably.
-Local packages (`@distributed-systems/shared`, `@distributed-systems/database`, `@distributed-systems/rabbitmq`) are not resolved at runtime without explicit symlinks.
-
-Always add this step after `bun install`:
+All Dockerfiles must install build toolchain before `bun install` because `ssh2` (and other modules with native addons) require node-gyp:
 
 ```dockerfile
-RUN mkdir -p /app/node_modules/@distributed-systems && \
-    ln -sfn /app/packages/shared /app/node_modules/@distributed-systems/shared && \
-    ln -sfn /app/packages/database /app/node_modules/@distributed-systems/database && \
-    ln -sfn /app/packages/rabbitmq /app/node_modules/@distributed-systems/rabbitmq
+RUN apk add --no-cache python3 make g++ git
+ENV PYTHON=/usr/bin/python3
+ENV HUSKY=0
 ```
+
+`ENV HUSKY=0` prevents Husky from running the `prepare` hook during `bun install` inside the image.
 
 ### Single-stage for apps that run TypeScript directly
 
-Backend and worker run `bun run src/index.ts` (no compilation step). Multi-stage builds break workspace symlinks when copying `node_modules/` between stages.
-
-Rule: use single-stage for any app that runs TypeScript source directly with bun.
+Backend and worker run `bun run src/index.ts` (no compilation step). Use a single-stage image for these.
 
 Frontend uses multi-stage (bun build → nginx) because it produces a static `dist/`.
 
@@ -85,59 +70,78 @@ RUN bun run --filter '@distributed-systems/database' db:generate
 
 Also ensure `@prisma/client` is in `dependencies` of `packages/database/package.json`.
 
-### Root tsconfig must be copied in Dockerfile
-
-Every app tsconfig extends `../../tsconfig.json`. Omitting it from the COPY step causes build failure.
-
-```dockerfile
-COPY package.json bun.lock bunfig.toml tsconfig.json ./
-```
-
-### Backend / Worker Dockerfile template (single-stage)
+### Backend Dockerfile (single-stage)
 
 ```dockerfile
 FROM oven/bun:1.3.6-alpine
+
+WORKDIR /app
+RUN apk add --no-cache python3 make g++ git
+ENV PYTHON=/usr/bin/python3
+ENV HUSKY=0
+
+COPY . .
+
+RUN bun install --frozen-lockfile --verbose
+
+WORKDIR /app/apps/backend
+EXPOSE 3000
+ENV PRISMA_GENERATE_SKIP_AUTOINSTALL=true
+
+CMD ["sh", "-c", "bun run --filter '@distributed-systems/database' db:migrate:deploy && bun run src/index.ts"]
+```
+
+### Worker Dockerfile (single-stage)
+
+```dockerfile
+FROM oven/bun:1.3.6-alpine
+
 WORKDIR /app
 
-COPY package.json bun.lock bunfig.toml tsconfig.json ./
-COPY apps/backend/package.json ./apps/backend/
-COPY apps/frontend/package.json ./apps/frontend/
-COPY apps/worker/package.json ./apps/worker/
-COPY packages/database/package.json ./packages/database/
-COPY packages/shared/package.json ./packages/shared/
-COPY packages/rabbitmq/package.json ./packages/rabbitmq/
+RUN apk add --no-cache python3 make g++ git
+ENV PYTHON=/usr/bin/python3
+ENV HUSKY=0
+
+COPY . .
 
 RUN bun install --frozen-lockfile
-
-RUN mkdir -p /app/node_modules/@distributed-systems && \
-    ln -sfn /app/packages/shared /app/node_modules/@distributed-systems/shared && \
-    ln -sfn /app/packages/database /app/node_modules/@distributed-systems/database && \
-    ln -sfn /app/packages/rabbitmq /app/node_modules/@distributed-systems/rabbitmq
-
-COPY packages/shared/ ./packages/shared/
-COPY packages/database/ ./packages/database/
-COPY packages/rabbitmq/ ./packages/rabbitmq/
 
 ENV PRISMA_GENERATE_SKIP_AUTOINSTALL=true
 RUN bun run --filter '@distributed-systems/database' db:generate
 
-COPY apps/backend/ ./apps/backend/
-WORKDIR /app/apps/backend
-EXPOSE 3000
-CMD ["sh", "-c", "bun run --filter '@distributed-systems/database' db:migrate:deploy && bun run src/index.ts"]
+WORKDIR /app/apps/worker
+CMD ["bun", "run", "src/index.ts"]
 ```
 
-### Frontend Dockerfile template (multi-stage)
+### Frontend Dockerfile (multi-stage)
 
 ```dockerfile
+# Stage 1: build
 FROM oven/bun:1.3.6-alpine AS builder
-WORKDIR /app
-# ... copy and bun install ...
-# ... bun run build ...
 
-FROM nginx:alpine
+WORKDIR /app
+
+RUN apk add --no-cache python3 make g++ git
+ENV PYTHON=/usr/bin/python3
+ENV HUSKY=0
+
+COPY . .
+
+RUN bun install --frozen-lockfile
+
+WORKDIR /app/apps/frontend
+RUN bun run build
+
+# Stage 2: serve via nginx
+FROM nginx:alpine AS runtime
+
+RUN rm -rf /usr/share/nginx/html/*
+
 COPY --from=builder /app/apps/frontend/dist/ /usr/share/nginx/html/
 COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
 ```
 
 ---
