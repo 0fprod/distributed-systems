@@ -49,7 +49,10 @@ export async function retryInvoiceHandler(
 
   if (!updateResult.ok) return updateResult;
 
-  await deps.publisher.publish(InvoiceExchanges.CREATED, { invoiceId: command.invoiceId });
+  await deps.publisher.publish(InvoiceExchanges.CREATED, {
+    invoiceId: command.invoiceId,
+    userId: command.userId,
+  });
 
   return ok({ id: command.invoiceId });
 }
