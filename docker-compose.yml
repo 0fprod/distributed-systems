@@ -69,6 +69,13 @@ services:
         condition: service_started
     networks:
       - app-network
+    # Simulates horizontal autoscaling (KEDA in production).
+    # Each replica competes for messages on the shared "worker.invoices.created"
+    # queue — RabbitMQ round-robins between them with prefetch=1 per instance,
+    # so N invoices process in parallel without any code changes.
+    # Tune replicas to match expected throughput during load testing.
+    deploy:
+      replicas: 3
 
   adminer:
     image: adminer

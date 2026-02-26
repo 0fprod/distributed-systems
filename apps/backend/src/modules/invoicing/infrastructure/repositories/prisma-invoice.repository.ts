@@ -60,9 +60,22 @@ export const prismaInvoiceRepository: IInvoiceRepository = {
     }
   },
 
-  async deleteById(id) {
+  async deleteById({ invoiceId, userId }) {
     try {
-      await prisma.invoice.delete({ where: { id } });
+      // deleteMany with a compound where clause is the atomic ownership check:
+      // if the invoice exists but belongs to another user, count will be 0 and
+      // we return a typed error instead of silently succeeding or throwing.
+      const { count } = await prisma.invoice.deleteMany({
+        where: { id: invoiceId, userId },
+      });
+
+      if (count === 0) {
+        // We intentionally return "not_found" for both "does not exist" and
+        // "exists but owned by someone else" to avoid leaking ownership information
+        // through the API (enumeration prevention).
+        return err({ message: `Invoice ${invoiceId} not found`, type: "not_found" as const });
+      }
+
       return ok(undefined);
     } catch (e) {
       return err(new InvoicePersistenceError("Failed to delete invoice", e));

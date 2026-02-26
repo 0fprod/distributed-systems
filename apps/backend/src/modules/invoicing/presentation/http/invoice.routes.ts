@@ -12,79 +12,97 @@ import { prismaInvoiceRepository } from "#invoicing/infrastructure/repositories/
 import { authPlugin } from "#shared/plugins/auth.plugin";
 
 const repository = prismaInvoiceRepository;
-// Thin local adapter: wraps the shared publish primitive and satisfies the
-// IMessagePublisher port defined in the application layer. The port stays in
-// this app; only the infrastructure primitive lives in @distributed-systems/rabbitmq.
 const publisher: IMessagePublisher = { publish };
 
-// All invoice routes require a valid session. The authPlugin verifies the
-// HttpOnly "session" cookie and injects `currentUser` into the context.
-const jwtSecret = process.env.JWT_SECRET ?? "supersecret_changeme";
+interface InvoiceRoutesOptions {
+  jwtSecret: string;
+}
 
-export const invoiceRoutes = new Elysia({ prefix: ApiRoutes.INVOICES })
-  .use(authPlugin({ jwtSecret }))
-  // GET /invoices — query, no side effects; scoped to the authenticated user
-  .get("/", async ({ status, currentUser }) => {
-    const result = await listInvoicesHandler(repository, currentUser.userId);
+export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
+  return (
+    new Elysia({ prefix: ApiRoutes.INVOICES })
+      .use(authPlugin({ jwtSecret }))
 
-    if (!result.ok) {
-      return status(500, { message: result.error.message });
-    }
+      // GET /invoices
+      .get("/", async ({ status, currentUser }) => {
+        const result = await listInvoicesHandler(repository, currentUser.userId);
+        if (!result.ok) {
+          return status(500, { message: result.error.message });
+        }
+        return result.value;
+      })
 
-    return result.value;
-  })
-  // POST /invoices — command, returns { id } only (CQS: no domain data returned)
-  .post(
-    "/",
-    async ({ body, status, currentUser }) => {
-      // Stamp the authenticated user as the owner — no invoice can exist without one.
-      const createInvoiceCommand = {
-        name: body.name,
-        amount: body.amount,
-        userId: currentUser.userId,
-      };
-      const deps = { repository, publisher };
+      // POST /invoices
+      .post(
+        "/",
+        async ({ body, status, currentUser }) => {
+          const createInvoiceCommand = {
+            name: body.name,
+            amount: body.amount,
+            userId: currentUser.userId,
+          };
+          const deps = { repository, publisher };
 
-      const result = await createInvoiceHandler(createInvoiceCommand, deps);
+          const result = await createInvoiceHandler(createInvoiceCommand, deps);
+          if (!result.ok) {
+            return status(500, { message: result.error.message });
+          }
+          return status(201, result.value);
+        },
+        {
+          body: t.Object({
+            name: t.String({ minLength: 1 }),
+            amount: t.Number({ minimum: 0 }),
+          }),
+        },
+      )
 
-      if (!result.ok) {
-        return status(500, { message: result.error.message });
-      }
+      // PATCH /invoices/:id
+      .patch(
+        "/:id",
+        async ({ params, body, status, currentUser }) => {
+          const command = {
+            invoiceId: Number(params.id),
+            userId: currentUser.userId,
+            name: body.name,
+            amount: body.amount,
+          };
+          const result = await retryInvoiceHandler(command, { repository, publisher });
 
-      return status(201, result.value); // { id: number }
-    },
-    {
-      body: t.Object({
-        name: t.String({ minLength: 1 }),
-        amount: t.Number({ minimum: 0 }),
-      }),
-    },
-  )
-  // PATCH /invoices/:id — fix data and re-queue a failed invoice
-  .patch(
-    "/:id",
-    async ({ params, body, status }) => {
-      const command = { invoiceId: Number(params.id), name: body.name, amount: body.amount };
-      const result = await retryInvoiceHandler(command, { repository, publisher });
+          if (!result.ok) {
+            const error = result.error;
+            if ("type" in error) {
+              if (error.type === "not_found") return status(404, { message: error.message });
+              if (error.type === "forbidden") return status(403, { message: error.message });
+            }
+            return status(400, { message: error.message });
+          }
 
-      if (!result.ok) {
-        const error = result.error;
-        const code = "type" in error && error.type === "not_found" ? 404 : 400;
-        return status(code, { message: error.message });
-      }
+          return result.value;
+        },
+        {
+          body: t.Object({
+            name: t.String({ minLength: 1 }),
+            amount: t.Number({ minimum: 0 }),
+          }),
+        },
+      )
 
-      return result.value;
-    },
-    {
-      body: t.Object({
-        name: t.String({ minLength: 1 }),
-        amount: t.Number({ minimum: 0 }),
-      }),
-    },
-  )
-  // DELETE /invoices/:id — command, permanently removes an invoice
-  .delete("/:id", async ({ params, status }) => {
-    const result = await deleteInvoiceHandler({ invoiceId: Number(params.id) }, { repository });
-    if (!result.ok) return status(500, { message: result.error.message });
-    return status(204, null);
-  });
+      // DELETE /invoices/:id
+      .delete("/:id", async ({ params, status, currentUser }) => {
+        const result = await deleteInvoiceHandler(
+          { invoiceId: Number(params.id), userId: currentUser.userId },
+          { repository },
+        );
+        if (!result.ok) {
+          const error = result.error;
+          if ("type" in error) {
+            if (error.type === "not_found") return status(404, { message: error.message });
+            if (error.type === "forbidden") return status(403, { message: error.message });
+          }
+          return status(500, { message: error.message });
+        }
+        return status(204, null);
+      })
+  );
+}

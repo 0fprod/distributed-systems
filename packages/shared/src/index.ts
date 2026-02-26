@@ -16,6 +16,8 @@ export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
 
 export interface Invoice {
   id: number;
+  // userId links every invoice to its owner; required for ownership enforcement.
+  userId: number;
   name: string;
   amount: number;
   status: InvoiceStatus;

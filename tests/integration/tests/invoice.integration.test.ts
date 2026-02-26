@@ -137,6 +137,62 @@ describe("Invoice integration", () => {
     expect(patchRes.status).toBe(400);
   }, 10_000);
 
+  it("user A cannot delete an invoice belonging to user B", async () => {
+    // Arrange — register user B and create an invoice for them.
+    await fetch(`${ctx.baseUrl}${ApiRoutes.REGISTER}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Other User",
+        email: "other@example.com",
+        password: "secret456",
+      }),
+    });
+    const { userId: userIdB } = await loginAs(ctx.baseUrl, "other@example.com", "secret456");
+
+    const invoiceB = await givenAnInvoice(ctx.prisma).forUser(userIdB).withName("B Invoice").save();
+
+    // Act — user A (sessionCookie from beforeEach) tries to delete B's invoice.
+    const deleteRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}/${invoiceB.id}`, {
+      method: "DELETE",
+      headers: { Cookie: sessionCookie },
+    });
+
+    // Assert — the server must reject the request (404 to avoid leaking ownership).
+    expect(deleteRes.status).toBe(404);
+  }, 15_000);
+
+  it("user A cannot retry an invoice belonging to user B", async () => {
+    // Arrange — register user B and create a failed invoice for them.
+    await fetch(`${ctx.baseUrl}${ApiRoutes.REGISTER}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Other User",
+        email: "other@example.com",
+        password: "secret456",
+      }),
+    });
+    const { userId: userIdB } = await loginAs(ctx.baseUrl, "other@example.com", "secret456");
+
+    const failedB = await givenAnInvoice(ctx.prisma)
+      .forUser(userIdB)
+      .withName("B Failed")
+      .withAmount(100)
+      .withStatus(InvoiceStatus.FAILED)
+      .save();
+
+    // Act — user A (sessionCookie from beforeEach) tries to retry B's invoice.
+    const patchRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}/${failedB.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: sessionCookie },
+      body: JSON.stringify({ name: "Retry Attempt", amount: 200 }),
+    });
+
+    // Assert — the server must return 403 Forbidden.
+    expect(patchRes.status).toBe(403);
+  }, 15_000);
+
   it("user A cannot see invoices belonging to user B", async () => {
     // Arrange — register and login user B.
     await fetch(`${ctx.baseUrl}${ApiRoutes.REGISTER}`, {

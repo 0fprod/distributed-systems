@@ -10,11 +10,12 @@ import type { RetryInvoiceCommand } from "./retry-invoice.command";
 
 type RetryInvoiceError =
   | InvoicePersistenceError
-  | { message: string; type: "not_found" | "invalid_status" };
+  | { message: string; type: "not_found" | "invalid_status" | "forbidden" };
 
 // Handler: orchestrates the retry use case.
-// Guard: only invoices in "failed" status can be retried — prevents accidental
+// Guard 1: only invoices in "failed" status can be retried — prevents accidental
 // re-processing of completed or in-progress invoices.
+// Guard 2: ownership — only the invoice owner may retry it.
 export async function retryInvoiceHandler(
   command: RetryInvoiceCommand,
   deps: { repository: IInvoiceRepository; publisher: IMessagePublisher },
@@ -25,6 +26,13 @@ export async function retryInvoiceHandler(
     return err({ message: `Invoice ${command.invoiceId} not found`, type: "not_found" });
 
   const current = findResult.value;
+
+  // Ownership check comes before status check: we must not reveal status
+  // information about invoices belonging to other users.
+  if (current.userId !== command.userId) {
+    return err({ message: `Forbidden`, type: "forbidden" });
+  }
+
   if (current.status !== InvoiceStatus.FAILED) {
     return err({
       message: `Invoice ${command.invoiceId} is not in failed status`,

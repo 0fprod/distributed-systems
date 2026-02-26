@@ -8,6 +8,8 @@ import type { Invoice as PrismaInvoice } from "../generated/client";
 export function toDomainInvoice(raw: PrismaInvoice): Invoice {
   return {
     id: raw.id,
+    // Preserve the owner identity so the domain can enforce ownership rules.
+    userId: raw.userId,
     name: raw.name,
     // Prisma stores amount as Float; domain uses number — compatible.
     amount: raw.amount,

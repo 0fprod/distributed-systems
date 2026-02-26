@@ -19,5 +19,12 @@ export interface IInvoiceRepository {
   findById(id: number): Promise<Result<Invoice | null, InvoicePersistenceError>>;
   // userId scopes the result: each caller only receives their own invoices.
   findAll(userId: number): Promise<Result<Invoice[], InvoicePersistenceError>>;
-  deleteById(id: number): Promise<Result<void, InvoicePersistenceError>>;
+  // invoiceId + userId pair guarantees ownership atomically: the row is only
+  // removed when both columns match, preventing cross-user deletions.
+  deleteById(params: {
+    invoiceId: number;
+    userId: number;
+  }): Promise<
+    Result<void, InvoicePersistenceError | { message: string; type: "not_found" | "forbidden" }>
+  >;
 }

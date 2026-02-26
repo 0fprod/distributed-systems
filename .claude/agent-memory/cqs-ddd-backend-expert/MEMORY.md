@@ -16,6 +16,9 @@ Full architecture details: see `architecture.md`
 **Domain model is the API contract** — no separate DTOs.
 **Key rule**: only `FAILED` invoices can be retried (guard in `retryInvoiceHandler`).
 **Ownership**: Invoice.userId is NOT NULL — every invoice must have an owner. `save()` and `findAll(userId)` on IInvoiceRepository are scoped by userId. Presentation layer extracts userId from `currentUser` (injected by authPlugin).
+**Ownership enforcement**: DELETE uses `prisma.invoice.deleteMany({ where: { id, userId } })` — atomic ownership check in the DB, returns `not_found` if count===0 (prevents enumeration leaking). PATCH (retry) checks `invoice.userId !== command.userId` in handler before status guard, returns `forbidden`. Routes map `not_found` → 404, `forbidden` → 403.
+**Invoice type**: `@distributed-systems/shared` `Invoice` includes `userId: number`. `toDomainInvoice` in `packages/database` maps it. Frontend test fixtures must include `userId`.
+**IInvoiceRepository.deleteById**: signature is `({ invoiceId, userId })`, returns `Result<void, InvoicePersistenceError | { message, type: "not_found" | "forbidden" }>`.
 
 ## Subpath Aliases
 
