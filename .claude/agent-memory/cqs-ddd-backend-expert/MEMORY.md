@@ -9,6 +9,8 @@ Full architecture details: see `architecture.md`
 
 ## Domain
 
+**Bounded contexts**: Invoicing (Invoice aggregate), Users (login-user command added)
+**User auth**: JWT in HttpOnly cookie "session"; secret from env JWT_SECRET
 **Bounded context**: Invoicing | **Aggregate root**: `Invoice`
 **Status values**: `pending | inprogress | completed | failed` (`InvoiceStatus` in `@distributed-systems/shared`)
 **Domain model is the API contract** — no separate DTOs.
@@ -46,8 +48,13 @@ Package: `@distributed-systems/rabbitmq`
 `src/modules/invoicing/application/queries/`: list-invoices
 `src/modules/invoicing/infrastructure/messaging/`: 3 consumers (completed, failed, inprogress) → WS broadcast
 `src/modules/invoicing/presentation/http/`: invoice.routes.ts + ws.routes.ts
+`src/modules/users/application/commands/`: register-user, login-user
+`src/modules/users/presentation/http/`: user.routes.ts, auth.routes.ts
+`src/shared/plugins/`: auth.plugin.ts (JWT guard — use on protected routes)
 WS: `wsConnections: Set<SendFn>` exported from ws.routes.ts, imported by consumers directly.
-Routes: GET /health, GET /invoices, POST /invoices → 201 {id}, PATCH /invoices/:id, DELETE /invoices/:id → 204
+Routes: GET /health, GET /invoices*, POST /invoices* → 201 {id}, PATCH /invoices/:id*, DELETE /invoices/:id* → 204
+POST /register, POST /login, POST /logout, GET /me (\* = requires auth cookie)
+Auth guard: `.use(authPlugin({ jwtSecret }))` — injects `currentUser: {userId, email}` via resolve({ as: "scoped" })
 
 ## Worker Structure
 
@@ -65,14 +72,16 @@ Worker: `apps/worker/src/modules/shared/core/result.ts`
 
 ## Integration Tests
 
-Location: `integration-tests/` (monorepo root workspace, NOT inside apps/)
+Location: `tests/integration/` (monorepo root, NOT `integration-tests/`)
 Setup: MySqlContainer + RabbitMQContainer → migrate → spawn backend (port 3099) + worker as subprocesses
-Migrations: `Bun.spawnSync(["bun", "x", "prisma", "migrate", "deploy", "--schema", SCHEMA], { cwd: integration-tests/ })`
+Migrations: `Bun.spawnSync(["bun", "run", "--cwd", "packages/database", "prisma", "migrate", "deploy", ...], ...)`
 Builder: `givenAnInvoice(prisma).withName().withAmount().withStatus().save()`
+Auth helper: `loginAs(baseUrl, email, password): Promise<string>` → returns "session=<token>" cookie string
 Timeouts: beforeAll=90s, end-to-end tests=30s (processFakeInvoice takes 10s)
-Clean state: `ctx.prisma.invoice.deleteMany()` in beforeEach
+Clean state: `ctx.prisma.invoice.deleteMany()` + `ctx.prisma.user.deleteMany()` in beforeEach (invoice tests)
 PrismaClient: `new PrismaClient({ datasources: { db: { url: mysql.getConnectionUri() } } })`
 Backend port 3099 during tests (avoids conflict with docker-compose port 3000)
+waitForStatus: now accepts optional `sessionCookie` param (required since /invoices is protected)
 
 ## Elysia Gotchas
 
@@ -81,6 +90,10 @@ Backend port 3099 during tests (avoids conflict with docker-compose port 3000)
 - WS: `wsConnections: Set<SendFn>` + `wsRegistry: Map<object, SendFn>` (ws.raw as key for cleanup)
 - `InvoicePersistenceError`: use `override readonly cause` (ES2022 base class conflict)
 - Barrel files in packages use relative imports (NOT `#*`) — `#*` resolves in consuming tsconfig context
+- Cookie access in generic context: use `cookie["key"]` (Record<string, Cookie<unknown>>) — NOT destructure
+- `noUncheckedIndexedAccess: true` → `cookie["key"]` may be undefined; use `?.value` + typeof guard
+- TS2742 portability error with jwt/jose: add `"declaration": false` to app tsconfig (apps don't publish types)
+- JWT plugin: `jwt({ name: "jwt", secret, exp: "7d" })` — use `.resolve({ as: "scoped" })` for auth guard
 
 ## Running the System
 

@@ -77,6 +77,22 @@
 - In HappyDOM, `window.location.protocol` is `"http:"` and `window.location.host` is `""`, so `buildWsUrl("/ws")` produces `"ws:///ws"` — assert that exact string in the URL test
 - `spyOn(client, "invalidateQueries")` works for TanStack Query invalidation assertions; alternatively assign `client.invalidateQueries = mock(...)` directly
 
+### Import Map: `.ts` vs `.tsx` in `#shared/*`
+
+- `package.json` imports: `"#shared/*": "./src/shared/*.ts"` — enforces `.ts` extension
+- `.tsx` files in `src/shared/` (e.g., `protected-route.tsx`) are NOT resolvable via `#shared/*` in bun tests
+- Vite resolves `#shared/*` via its regex alias without extension enforcement, so `.tsx` works at build/dev time
+- Do NOT change `#shared/*` to `./src/shared/*` (no extension) — bun can't resolve ambiguous paths
+- For `.tsx` files in shared that are only used in `app.tsx` (not tested directly), the Vite alias works fine
+- Hook files (`.ts`) in `src/shared/` are fine: `use-current-user.ts`, `request.ts`, `query-keys.ts`, etc.
+
+### Routing (react-router-dom v7)
+
+- Installed in `apps/frontend` as `react-router-dom@7.x`
+- `BrowserRouter` wraps the app in `app.tsx`; `QueryClientProvider` is the outer wrapper
+- `ProtectedRoute` uses `<Outlet />` as the child placeholder — nest protected routes inside `<Route element={<ProtectedRoute />}>`
+- Vite proxy must include `/login`, `/logout`, `/me`, `/register` routes pointing to `http://localhost:3000`
+
 ### Testing Commands
 
 - From root: `bun test apps/frontend`
