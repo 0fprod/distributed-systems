@@ -17,7 +17,7 @@ export function LoginUserComponent({ onLoggedIn }: LoginUserComponentProps) {
   const mutation = useMutation({
     mutationFn: loginUser,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: QueryKeys.me });
+      await queryClient.refetchQueries({ queryKey: QueryKeys.me });
       onLoggedIn();
     },
   });
