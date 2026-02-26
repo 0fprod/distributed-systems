@@ -1,9 +1,9 @@
-import { RegisterComponent } from "#features/auth/register/register.component";
+import { RegisterUserFeature } from "#features/auth/register-user";
 
 interface RegisterPageProps {
   onRegistered: () => void;
 }
 
 export function RegisterPage({ onRegistered }: RegisterPageProps) {
-  return <RegisterComponent onSuccess={onRegistered} />;
+  return <RegisterUserFeature onRegistered={onRegistered} />;
 }

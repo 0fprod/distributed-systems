@@ -1,51 +1,37 @@
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
-interface RegisterFormData {
-  name: string;
-  email: string;
-  password: string;
-}
+import type { RegisterUserPayload } from "./register-user.mutation";
+import { registerUser } from "./register-user.mutation";
 
-interface RegisterComponentProps {
+interface RegisterUserComponentProps {
   onSuccess: () => void;
 }
 
-export function RegisterComponent({ onSuccess }: RegisterComponentProps) {
-  const [form, setForm] = useState<RegisterFormData>({ name: "", email: "", password: "" });
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+export function RegisterUserComponent({ onSuccess }: RegisterUserComponentProps) {
+  const [form, setForm] = useState<RegisterUserPayload>({ name: "", email: "", password: "" });
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  const mutation = useMutation({
+    mutationFn: registerUser,
+    onSuccess,
+  });
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setLoading(true);
-
-    try {
-      const res = await fetch("/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-
-      if (res.status === 201) {
-        onSuccess();
-        return;
-      }
-
-      const body = (await res.json()) as { message?: string };
-      setError(body.message ?? "Registration failed. Please try again.");
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    mutation.mutate(form);
   }
 
   return (
     <div className="space-y-4 rounded-lg bg-white p-6 shadow">
       <h2 className="text-xl font-semibold text-gray-800">Create an account</h2>
 
-      {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {mutation.isError && (
+        <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
+          {mutation.error instanceof Error
+            ? mutation.error.message
+            : "Registration failed. Please try again."}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex flex-col gap-1">
@@ -92,10 +78,10 @@ export function RegisterComponent({ onSuccess }: RegisterComponentProps) {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={mutation.isPending}
           className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? "Registering..." : "Register"}
+          {mutation.isPending ? "Registering..." : "Register"}
         </button>
 
         <button
