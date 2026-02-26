@@ -181,15 +181,49 @@ export async function startStack(): Promise<Stack> {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Registers a user and returns the session cookie string (format: "session=<token>")
+// that can be passed in a Cookie header for subsequent authenticated requests.
+export async function loginAs(baseUrl: string, email: string, password: string): Promise<string> {
+  // Ensure the user exists (idempotent — ignores duplicate email errors).
+  await fetch(`${baseUrl}${ApiRoutes.REGISTER}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "Test User", email, password }),
+  });
+
+  const loginRes = await fetch(`${baseUrl}${ApiRoutes.LOGIN}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!loginRes.ok) {
+    throw new Error(`Login failed: ${loginRes.status}`);
+  }
+
+  const setCookie = loginRes.headers.get("set-cookie");
+  if (!setCookie) throw new Error("No Set-Cookie header in login response");
+
+  // Return only the cookie name=value portion (strip attributes like Path, HttpOnly, etc.)
+  return setCookie.split(";")[0]!;
+}
+
 export async function waitForStatus(
   baseUrl: string,
   invoiceId: number,
   expectedStatus: string,
   timeoutMs = 20_000,
+  sessionCookie?: string,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const res = await fetch(`${baseUrl}${ApiRoutes.INVOICES}`);
+    const headers: Record<string, string> = {};
+    if (sessionCookie) headers["Cookie"] = sessionCookie;
+    const res = await fetch(`${baseUrl}${ApiRoutes.INVOICES}`, { headers });
     const invoices = (await res.json()) as Array<{ id: number; status: string }>;
     if (invoices.find((i) => i.id === invoiceId)?.status === expectedStatus) return;
     await Bun.sleep(300);

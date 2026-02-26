@@ -24,6 +24,9 @@ export const ApiRoutes = {
   HEALTH: "/health",
   INVOICES: "/invoices",
   REGISTER: "/register",
+  LOGIN: "/login",
+  LOGOUT: "/logout",
+  ME: "/me",
   WS: "/ws",
 } as const;
 

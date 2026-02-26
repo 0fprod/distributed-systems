@@ -1,19 +1,25 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import type { RegisterUserPayload } from "./register-user.mutation";
-import { registerUser } from "./register-user.mutation";
+import { QueryKeys } from "#shared/query-keys";
 
-interface RegisterUserComponentProps {
-  onSuccess: () => void;
+import type { LoginUserPayload } from "./login-user.mutation";
+import { loginUser } from "./login-user.mutation";
+
+interface LoginUserComponentProps {
+  onLoggedIn: () => void;
 }
 
-export function RegisterUserComponent({ onSuccess }: RegisterUserComponentProps) {
-  const [form, setForm] = useState<RegisterUserPayload>({ name: "", email: "", password: "" });
+export function LoginUserComponent({ onLoggedIn }: LoginUserComponentProps) {
+  const [form, setForm] = useState<LoginUserPayload>({ email: "", password: "" });
+  const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: registerUser,
-    onSuccess,
+    mutationFn: loginUser,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: QueryKeys.me });
+      onLoggedIn();
+    },
   });
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -23,37 +29,23 @@ export function RegisterUserComponent({ onSuccess }: RegisterUserComponentProps)
 
   return (
     <div className="space-y-4 rounded-lg bg-white p-6 shadow">
-      <h2 className="text-xl font-semibold text-gray-800">Create an account</h2>
+      <h2 className="text-xl font-semibold text-gray-800">Sign in to your account</h2>
 
       {mutation.isError && (
         <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
           {mutation.error instanceof Error
             ? mutation.error.message
-            : "Registration failed. Please try again."}
+            : "Login failed. Please try again."}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex flex-col gap-1">
-          <label htmlFor="name" className="text-sm font-medium text-gray-700">
-            Name
-          </label>
-          <input
-            id="name"
-            type="text"
-            value={form.name}
-            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-            required
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="email" className="text-sm font-medium text-gray-700">
+          <label htmlFor="login-email" className="text-sm font-medium text-gray-700">
             Email
           </label>
           <input
-            id="email"
+            id="login-email"
             type="email"
             value={form.email}
             onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
@@ -63,11 +55,11 @@ export function RegisterUserComponent({ onSuccess }: RegisterUserComponentProps)
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="password" className="text-sm font-medium text-gray-700">
+          <label htmlFor="login-password" className="text-sm font-medium text-gray-700">
             Password
           </label>
           <input
-            id="password"
+            id="login-password"
             type="password"
             value={form.password}
             onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
@@ -81,7 +73,7 @@ export function RegisterUserComponent({ onSuccess }: RegisterUserComponentProps)
           disabled={mutation.isPending}
           className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {mutation.isPending ? "Registering..." : "Register"}
+          {mutation.isPending ? "Signing in..." : "Sign in"}
         </button>
       </form>
     </div>

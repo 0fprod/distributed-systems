@@ -23,6 +23,22 @@ export default defineConfig({
         target: "http://localhost:3000",
         changeOrigin: true,
       },
+      "/login": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+      },
+      "/logout": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+      },
+      "/me": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+      },
+      "/register": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+      },
       "/ws": {
         target: "ws://localhost:3000",
         ws: true,
