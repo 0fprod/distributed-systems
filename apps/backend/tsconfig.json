@@ -8,7 +8,11 @@
       "#*": ["./src/*"]
     },
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    // Apps do not publish type declarations — disable to avoid TS2742 portability
+    // errors that arise when Elysia/jose types cannot be referenced by name.
+    "declaration": false,
+    "declarationMap": false
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

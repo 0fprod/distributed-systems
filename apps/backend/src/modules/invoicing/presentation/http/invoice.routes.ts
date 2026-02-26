@@ -9,6 +9,7 @@ import { retryInvoiceHandler } from "#invoicing/application/commands/retry-invoi
 import type { IMessagePublisher } from "#invoicing/application/ports/message-publisher.port";
 import { listInvoicesHandler } from "#invoicing/application/queries/list-invoices/list-invoices.handler";
 import { prismaInvoiceRepository } from "#invoicing/infrastructure/repositories/prisma-invoice.repository";
+import { authPlugin } from "#shared/plugins/auth.plugin";
 
 const repository = prismaInvoiceRepository;
 // Thin local adapter: wraps the shared publish primitive and satisfies the
@@ -16,7 +17,12 @@ const repository = prismaInvoiceRepository;
 // this app; only the infrastructure primitive lives in @distributed-systems/rabbitmq.
 const publisher: IMessagePublisher = { publish };
 
+// All invoice routes require a valid session. The authPlugin verifies the
+// HttpOnly "session" cookie and injects `currentUser` into the context.
+const jwtSecret = process.env.JWT_SECRET ?? "supersecret_changeme";
+
 export const invoiceRoutes = new Elysia({ prefix: ApiRoutes.INVOICES })
+  .use(authPlugin({ jwtSecret }))
   // GET /invoices — query, no side effects
   .get("/", async ({ status }) => {
     const result = await listInvoicesHandler(repository);

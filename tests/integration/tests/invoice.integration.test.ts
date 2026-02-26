@@ -4,9 +4,10 @@ import type { Invoice } from "@distributed-systems/shared";
 import { ApiRoutes, InvoiceStatus } from "@distributed-systems/shared";
 
 import { givenAnInvoice } from "../builders/invoice.builder";
-import { type Stack, waitForStatus } from "../setup";
+import { type Stack, loginAs, waitForStatus } from "../setup";
 
 let ctx: Stack;
+let sessionCookie: string;
 
 beforeAll(() => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,6 +17,9 @@ beforeAll(() => {
 
 beforeEach(async () => {
   await ctx.prisma.invoice.deleteMany();
+  await ctx.prisma.user.deleteMany();
+  // Obtain a fresh session cookie for every test to ensure a clean auth state.
+  sessionCookie = await loginAs(ctx.baseUrl, "test@example.com", "secret123");
 });
 
 describe("Invoice integration", () => {
@@ -25,17 +29,19 @@ describe("Invoice integration", () => {
     // Act
     const postRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Cookie: sessionCookie },
       body: JSON.stringify({ name: "Acme Corp", amount: 1200 }),
     });
 
     expect(postRes.status).toBe(201);
     const { id } = (await postRes.json()) as Pick<Invoice, "id">;
 
-    await waitForStatus(ctx.baseUrl, id, InvoiceStatus.COMPLETED);
+    await waitForStatus(ctx.baseUrl, id, InvoiceStatus.COMPLETED, 20_000, sessionCookie);
 
     // Assert
-    const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`);
+    const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
+      headers: { Cookie: sessionCookie },
+    });
     const invoices = (await listRes.json()) as Invoice[];
 
     expect(invoices).toHaveLength(1);
@@ -54,12 +60,15 @@ describe("Invoice integration", () => {
     // Act
     const deleteRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}/${invoice.id}`, {
       method: "DELETE",
+      headers: { Cookie: sessionCookie },
     });
 
     // Assert
     expect(deleteRes.status).toBe(204);
 
-    const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`);
+    const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
+      headers: { Cookie: sessionCookie },
+    });
     const invoices = (await listRes.json()) as Invoice[];
     expect(invoices).toHaveLength(0);
   }, 15_000);
@@ -75,15 +84,17 @@ describe("Invoice integration", () => {
     // Act
     const patchRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}/${failed.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Cookie: sessionCookie },
       body: JSON.stringify({ name: "Fixed Name", amount: 500 }),
     });
 
     expect(patchRes.status).toBe(200);
-    await waitForStatus(ctx.baseUrl, failed.id, InvoiceStatus.COMPLETED);
+    await waitForStatus(ctx.baseUrl, failed.id, InvoiceStatus.COMPLETED, 20_000, sessionCookie);
 
     // Assert
-    const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`);
+    const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
+      headers: { Cookie: sessionCookie },
+    });
     const invoices = (await listRes.json()) as Invoice[];
 
     expect(invoices).toHaveLength(1);
@@ -102,7 +113,7 @@ describe("Invoice integration", () => {
     // Act
     const patchRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}/${completed.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Cookie: sessionCookie },
       body: JSON.stringify({ name: "X", amount: 100 }),
     });
 

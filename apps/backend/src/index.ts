@@ -7,7 +7,12 @@ import { startInvoiceFailedConsumer } from "#invoicing/infrastructure/messaging/
 import { startInvoiceInProgressConsumer } from "#invoicing/infrastructure/messaging/invoice-inprogress.consumer";
 import { invoiceRoutes } from "#invoicing/presentation/http/invoice.routes";
 import { wsRoutes } from "#invoicing/presentation/http/ws.routes";
+import { authRoutes } from "#users/presentation/http/auth.routes";
 import { userRoutes } from "#users/presentation/http/user.routes";
+
+// The JWT secret is read once at startup and passed into plugins explicitly —
+// this avoids scattering process.env.JWT_SECRET reads throughout the codebase.
+const jwtSecret = process.env.JWT_SECRET ?? "supersecret_changeme";
 
 // Start RabbitMQ consumers before accepting HTTP traffic so no messages are
 // missed during startup.
@@ -19,6 +24,7 @@ const app = new Elysia()
   .get(ApiRoutes.HEALTH, () => ({ status: "ok" }))
   .use(invoiceRoutes)
   .use(userRoutes)
+  .use(authRoutes({ jwtSecret }))
   .use(wsRoutes)
   .listen({ port: Number(process.env.PORT ?? 3000), hostname: "0.0.0.0" });
 
