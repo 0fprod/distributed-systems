@@ -1,37 +1,27 @@
-export class WeakPasswordError extends Error {
-  constructor() {
-    super("Password must be at least 6 characters long");
-    this.name = "WeakPasswordError";
-  }
+export class WeakPasswordError {
+  readonly type = "weak_password" as const;
+  readonly message = "Password must be at least 6 characters long";
 }
 
-export class DuplicateEmailError extends Error {
-  constructor(email: string) {
-    super(`A user with email "${email}" already exists`);
-    this.name = "DuplicateEmailError";
-  }
+export class DuplicateEmailError {
+  readonly type = "duplicate_email" as const;
+  constructor(readonly message: string) {}
 }
 
-export class UserPersistenceError extends Error {
-  override readonly cause: unknown;
-
-  constructor(message: string, cause?: unknown) {
-    super(message);
-    this.name = "UserPersistenceError";
-    this.cause = cause;
-  }
+export class UserPersistenceError {
+  readonly type = "persistence_error" as const;
+  constructor(
+    readonly message: string,
+    readonly cause?: unknown,
+  ) {}
 }
 
-export class UserNotFoundError extends Error {
-  constructor(email: string) {
-    super(`No user found with email "${email}"`);
-    this.name = "UserNotFoundError";
-  }
+export class UserNotFoundError {
+  readonly type = "not_found" as const;
+  constructor(readonly message: string) {}
 }
 
-export class InvalidCredentialsError extends Error {
-  constructor() {
-    super("Invalid email or password");
-    this.name = "InvalidCredentialsError";
-  }
+export class InvalidCredentialsError {
+  readonly type = "invalid_credentials" as const;
+  readonly message = "Invalid email or password";
 }

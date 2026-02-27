@@ -1,38 +1,22 @@
-export class InvoicePersistenceError extends Error {
-  readonly kind = "InvoicePersistenceError" as const;
-
+export class InvoicePersistenceError {
+  readonly type = "persistence_error" as const;
   constructor(
-    message: string,
-    public override readonly cause?: unknown,
-  ) {
-    super(message);
-    this.name = "InvoicePersistenceError";
-  }
+    readonly message: string,
+    readonly cause?: unknown,
+  ) {}
 }
 
-export class InvoiceNotFoundError extends Error {
-  readonly kind = "InvoiceNotFoundError" as const;
-
-  constructor(message: string) {
-    super(message);
-    this.name = "InvoiceNotFoundError";
-  }
+export class InvoiceNotFoundError {
+  readonly type = "not_found" as const;
+  constructor(readonly message: string) {}
 }
 
-export class InvoiceInvalidStatusError extends Error {
-  readonly kind = "InvoiceInvalidStatusError" as const;
-
-  constructor(message: string) {
-    super(message);
-    this.name = "InvoiceInvalidStatusError";
-  }
+export class InvoiceInvalidStatusError {
+  readonly type = "invalid_status" as const;
+  constructor(readonly message: string) {}
 }
 
-export class InvoiceForbiddenError extends Error {
-  readonly kind = "InvoiceForbiddenError" as const;
-
-  constructor(message: string) {
-    super(message);
-    this.name = "InvoiceForbiddenError";
-  }
+export class InvoiceForbiddenError {
+  readonly type = "forbidden" as const;
+  constructor(readonly message: string) {}
 }

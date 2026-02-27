@@ -1,10 +1,13 @@
 import { prisma } from "@distributed-systems/database";
+import { createLogger } from "@distributed-systems/logger";
 
 import { InvoiceWorkerPersistenceError } from "#invoicing/domain/errors/invoice.errors";
 import type { IInvoiceRepository } from "#invoicing/domain/repositories/invoice.repository.interface";
 import { err, ok } from "#shared/core/result";
 
 import { toWorkerInvoice } from "./mapper";
+
+const logger = createLogger("prisma-invoice-repository");
 
 // Concrete repository: translates between the worker read model and Prisma's persistence model.
 // Uses the Result pattern to keep error paths explicit and typed.
@@ -14,6 +17,7 @@ export const prismaInvoiceRepository: IInvoiceRepository = {
       const raw = await prisma.invoice.findUniqueOrThrow({ where: { id } });
       return ok(toWorkerInvoice(raw));
     } catch (e) {
+      logger.error({ err: e }, "failed to find invoice by id");
       return err(new InvoiceWorkerPersistenceError(`Failed to find invoice with id ${id}`, e));
     }
   },
@@ -26,6 +30,7 @@ export const prismaInvoiceRepository: IInvoiceRepository = {
       });
       return ok(toWorkerInvoice(raw));
     } catch (e) {
+      logger.error({ err: e }, "failed to update invoice");
       return err(new InvoiceWorkerPersistenceError("Failed to update invoice", e));
     }
   },

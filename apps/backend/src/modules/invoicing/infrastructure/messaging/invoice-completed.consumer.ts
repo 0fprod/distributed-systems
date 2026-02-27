@@ -1,7 +1,10 @@
+import { createLogger } from "@distributed-systems/logger";
 import { subscribe } from "@distributed-systems/rabbitmq";
 import { InvoiceEvents, InvoiceExchanges } from "@distributed-systems/shared";
 
 import { wsConnections } from "#invoicing/presentation/http/ws.routes";
+
+const logger = createLogger("invoice-consumer");
 
 interface InvoiceCompletedPayload {
   invoiceId: string;
@@ -24,7 +27,7 @@ function isInvoiceCompletedPayload(v: unknown): v is InvoiceCompletedPayload {
 export async function startInvoiceCompletedConsumer(): Promise<void> {
   await subscribe(InvoiceExchanges.COMPLETED, async (payload) => {
     if (!isInvoiceCompletedPayload(payload)) {
-      console.warn("[consumer] unexpected invoices.completed payload", payload);
+      logger.warn({ exchange: InvoiceExchanges.COMPLETED, payload }, "unexpected payload");
       return;
     }
 
@@ -37,6 +40,6 @@ export async function startInvoiceCompletedConsumer(): Promise<void> {
       }
     }
 
-    console.log(`[consumer] broadcasted invoice:completed for invoiceId=${payload.invoiceId}`);
+    logger.info({ invoiceId: payload.invoiceId }, "invoice:completed broadcasted");
   });
 }

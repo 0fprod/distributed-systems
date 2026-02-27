@@ -1,7 +1,10 @@
+import { createLogger } from "@distributed-systems/logger";
 import { subscribe } from "@distributed-systems/rabbitmq";
 import { InvoiceEvents, InvoiceExchanges } from "@distributed-systems/shared";
 
 import { wsConnections } from "#invoicing/presentation/http/ws.routes";
+
+const logger = createLogger("invoice-consumer");
 
 interface InvoiceFailedPayload {
   invoiceId: string;
@@ -24,7 +27,7 @@ function isInvoiceFailedPayload(v: unknown): v is InvoiceFailedPayload {
 export async function startInvoiceFailedConsumer(): Promise<void> {
   await subscribe(InvoiceExchanges.FAILED, async (payload) => {
     if (!isInvoiceFailedPayload(payload)) {
-      console.warn("[consumer] unexpected invoices.failed payload", payload);
+      logger.warn({ exchange: InvoiceExchanges.FAILED, payload }, "unexpected payload");
       return;
     }
 
@@ -37,6 +40,6 @@ export async function startInvoiceFailedConsumer(): Promise<void> {
       }
     }
 
-    console.log(`[consumer] broadcasted invoice:failed for invoiceId=${payload.invoiceId}`);
+    logger.info({ invoiceId: payload.invoiceId }, "invoice:failed broadcasted");
   });
 }

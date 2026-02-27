@@ -3,14 +3,10 @@
 // Infrastructure layers (Prisma, RabbitMQ) translate their own errors into these
 // before crossing into the domain/application layer, preserving persistence ignorance.
 
-export class InvoiceWorkerPersistenceError extends Error {
-  readonly kind = "InvoiceWorkerPersistenceError" as const;
-
+export class InvoiceWorkerPersistenceError {
+  readonly type = "persistence_error" as const;
   constructor(
-    message: string,
-    public override readonly cause?: unknown,
-  ) {
-    super(message);
-    this.name = "InvoiceWorkerPersistenceError";
-  }
+    readonly message: string,
+    readonly cause?: unknown,
+  ) {}
 }

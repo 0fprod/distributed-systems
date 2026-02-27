@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { InvoiceStatus } from "@distributed-systems/shared";
-import type { Invoice } from "@distributed-systems/shared";
+import type { InvoiceDTO } from "@distributed-systems/shared";
 
 import { QueryKeys } from "#shared/query-keys";
 
@@ -14,10 +14,10 @@ import { useInvoices } from "./use-invoices.hook";
 
 export function InvoiceList() {
   const { data: invoices } = useInvoices();
-  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [editingInvoice, setEditingInvoice] = useState<InvoiceDTO | null>(null);
   const queryClient = useQueryClient();
 
-  async function handleDelete(id: number) {
+  async function handleDelete(id: string) {
     await deleteInvoice(id);
     await queryClient.invalidateQueries({ queryKey: QueryKeys.invoices });
   }

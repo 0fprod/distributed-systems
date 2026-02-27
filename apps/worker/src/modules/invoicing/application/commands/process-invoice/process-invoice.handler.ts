@@ -1,3 +1,4 @@
+import { createLogger } from "@distributed-systems/logger";
 import { InvoiceExchanges, InvoiceStatus, processFakeInvoice } from "@distributed-systems/shared";
 
 import type { InvoiceWorkerPersistenceError } from "#invoicing/domain/errors/invoice.errors";
@@ -10,6 +11,8 @@ import type { Result } from "#shared/core/result";
 
 import type { IMessagePublisher } from "../../ports/message-publisher.port";
 import type { ProcessInvoiceCommand } from "./process-invoice.command";
+
+const logger = createLogger("process-invoice");
 
 type Dependencies = {
   publisher: IMessagePublisher;
@@ -46,7 +49,7 @@ export async function processInvoiceHandler(
   await deps.invoiceRepository.update({ ...invoice, status: InvoiceStatus.COMPLETED });
   await deps.publisher.publish(InvoiceExchanges.COMPLETED, { invoiceId, userId: user.id });
 
-  console.log(`[worker] invoice ${invoiceId} completed and event published`);
+  logger.info({ invoiceId }, "invoice completed");
 }
 
 // ── Guard clauses ─────────────────────────────────────────────────────────────
@@ -60,6 +63,7 @@ async function ensureUserIsValid(
   deps: Dependencies,
 ): Promise<WorkerUser> {
   if (!user.ok) {
+    logger.error({ invoiceId: ids.invoiceId, err: user.error.cause }, user.error.message);
     await deps.publisher.publish(InvoiceExchanges.FAILED, ids);
     throw new Error(`Failed to retrieve user with id ${ids.userId}: ${user.error.message}`);
   }
@@ -72,6 +76,7 @@ async function ensureInvoiceIsValid(
   deps: Dependencies,
 ): Promise<WorkerInvoice> {
   if (!invoice.ok) {
+    logger.error({ invoiceId: ids.invoiceId, err: invoice.error.cause }, invoice.error.message);
     await deps.publisher.publish(InvoiceExchanges.FAILED, ids);
     throw new Error(
       `Failed to retrieve invoice with id ${ids.invoiceId}: ${invoice.error.message}`,
@@ -79,6 +84,10 @@ async function ensureInvoiceIsValid(
   }
 
   if (!invoice.value.name || invoice.value.amount < 0) {
+    logger.error(
+      { invoiceId: ids.invoiceId },
+      `invalid invoice: name="${invoice.value.name}" amount=${invoice.value.amount}`,
+    );
     await deps.invoiceRepository.update({ ...invoice.value, status: InvoiceStatus.FAILED });
     await deps.publisher.publish(InvoiceExchanges.FAILED, ids);
     throw new Error(

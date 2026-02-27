@@ -1,13 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import type { Invoice } from "@distributed-systems/shared";
+import type { InvoiceDTO } from "@distributed-systems/shared";
 
 import { QueryKeys } from "#shared/query-keys";
 import { request } from "#shared/request";
 
 interface Props {
-  invoice: Invoice;
+  invoice: InvoiceDTO;
   onClose: () => void;
 }
 

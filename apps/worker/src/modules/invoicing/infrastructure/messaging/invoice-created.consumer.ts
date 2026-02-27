@@ -1,3 +1,4 @@
+import { createLogger } from "@distributed-systems/logger";
 import { QueueNames, subscribeWork } from "@distributed-systems/rabbitmq";
 import { InvoiceExchanges } from "@distributed-systems/shared";
 
@@ -6,6 +7,8 @@ import { prismaInvoiceRepository } from "#invoicing/infrastructure/repositories/
 import { prismaUserRepository } from "#invoicing/infrastructure/repositories/prisma-user.repository";
 
 import { invoicePublisher } from "./invoice-publisher";
+
+const logger = createLogger("invoice-created-consumer");
 
 interface InvoiceCreatedPayload {
   invoiceId: string;
@@ -37,7 +40,7 @@ export async function startInvoiceCreatedConsumer(): Promise<void> {
     QueueNames.WORKER_INVOICES_CREATED,
     async (payload) => {
       if (!isInvoiceCreatedPayload(payload)) {
-        console.warn("[consumer] unexpected invoices.created payload", payload);
+        logger.warn({ payload }, "unexpected payload");
         // Throwing here causes subscribeWork's catch block to nack without
         // requeue, routing the malformed message to the DLQ.
         throw new Error("invalid payload");
@@ -54,5 +57,5 @@ export async function startInvoiceCreatedConsumer(): Promise<void> {
     },
   );
 
-  console.log(`[worker] work-queue consumer started on "${QueueNames.WORKER_INVOICES_CREATED}"`);
+  logger.info({ queue: QueueNames.WORKER_INVOICES_CREATED }, "consumer started");
 }

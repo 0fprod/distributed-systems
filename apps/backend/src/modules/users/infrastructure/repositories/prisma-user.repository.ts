@@ -1,4 +1,5 @@
 import { prisma } from "@distributed-systems/database";
+import { createLogger } from "@distributed-systems/logger";
 
 import { type Result, err, ok } from "#shared/core/result";
 import {
@@ -9,6 +10,8 @@ import {
 import type { IUserRepository } from "#users/domain/repositories/user.repository.interface";
 import type { BackendUser } from "#users/domain/user";
 import { toBackendUser } from "#users/infrastructure/mappers/user.mapper";
+
+const logger = createLogger("prisma-user-repository");
 
 export const prismaUserRepository: IUserRepository = {
   async save(user: BackendUser) {
@@ -25,8 +28,9 @@ export const prismaUserRepository: IUserRepository = {
       return ok(undefined);
     } catch (cause) {
       if (isDuplicateEmailError(cause)) {
-        return err(new DuplicateEmailError(user.email));
+        return err(new DuplicateEmailError(`A user with email "${user.email}" already exists`));
       }
+      logger.error({ err: cause }, "failed to persist user");
       return err(new UserPersistenceError("Failed to persist user", cause));
     }
   },
@@ -37,10 +41,11 @@ export const prismaUserRepository: IUserRepository = {
     try {
       const raw = await prisma.user.findUnique({ where: { email } });
 
-      if (!raw) return err(new UserNotFoundError(email));
+      if (!raw) return err(new UserNotFoundError(`No user found with email "${email}"`));
 
       return ok(toBackendUser(raw));
     } catch (cause) {
+      logger.error({ err: cause }, "failed to retrieve user");
       return err(new UserPersistenceError("Failed to retrieve user", cause));
     }
   },

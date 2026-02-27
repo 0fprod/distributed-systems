@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, mock, spyOn, test } from "bun:test";
 
-import type { Invoice } from "@distributed-systems/shared";
+import type { InvoiceDTO } from "@distributed-systems/shared";
 
 import { httpError, httpOk } from "#test/http-helpers";
 import { makeClient, makeWrapper } from "#test/query-helpers";
@@ -35,10 +35,10 @@ test("renders skeleton while data loads", async () => {
 });
 
 test("renders invoice rows when data resolves", async () => {
-  const invoices: Invoice[] = [
-    { id: 1, userId: 1, name: "Acme Corp", amount: 1200, status: "completed" },
-    { id: 2, userId: 1, name: "Globex Inc", amount: 450, status: "inprogress" },
-    { id: 3, userId: 1, name: "Stark Industries", amount: 9800, status: "pending" },
+  const invoices: InvoiceDTO[] = [
+    { id: "1", userId: "1", name: "Acme Corp", amount: 1200, status: "completed" },
+    { id: "2", userId: "2", name: "Globex Inc", amount: 450, status: "inprogress" },
+    { id: "3", userId: "3", name: "Stark Industries", amount: 9800, status: "pending" },
   ];
 
   requestMock.mockImplementation(() => httpOk(invoices));
@@ -95,9 +95,9 @@ test("renders error state with retry button when fetch fails", async () => {
 });
 
 test("shows Edit & Retry button for failed invoices", async () => {
-  const invoices: Invoice[] = [
-    { id: 1, userId: 1, name: "Acme Corp", amount: 1200, status: "completed" },
-    { id: 2, userId: 1, name: "Wayne Enterprises", amount: 500, status: "failed" },
+  const invoices: InvoiceDTO[] = [
+    { id: "1", userId: "1", name: "Acme Corp", amount: 1200, status: "completed" },
+    { id: "2", userId: "2", name: "Wayne Enterprises", amount: 500, status: "failed" },
   ];
 
   requestMock.mockImplementation(() => httpOk(invoices));
@@ -116,8 +116,8 @@ test("shows Edit & Retry button for failed invoices", async () => {
 });
 
 test("clicking Edit & Retry opens the modal", async () => {
-  const invoices: Invoice[] = [
-    { id: 2, userId: 1, name: "Wayne Enterprises", amount: 500, status: "failed" },
+  const invoices: InvoiceDTO[] = [
+    { id: "2", userId: "2", name: "Wayne Enterprises", amount: 500, status: "failed" },
   ];
 
   requestMock.mockImplementation(() => httpOk(invoices));
@@ -140,9 +140,9 @@ test("clicking Edit & Retry opens the modal", async () => {
 });
 
 test("each invoice row renders a Delete button", async () => {
-  const invoices: Invoice[] = [
-    { id: 1, userId: 1, name: "Acme Corp", amount: 1200, status: "completed" },
-    { id: 2, userId: 1, name: "Globex Inc", amount: 450, status: "inprogress" },
+  const invoices: InvoiceDTO[] = [
+    { id: "1", userId: "1", name: "Acme Corp", amount: 1200, status: "completed" },
+    { id: "2", userId: "1", name: "Globex Inc", amount: 450, status: "inprogress" },
   ];
 
   requestMock.mockImplementation(() => httpOk(invoices));
@@ -161,8 +161,8 @@ test("each invoice row renders a Delete button", async () => {
 });
 
 test("clicking Delete calls DELETE /invoices/:id", async () => {
-  const invoices: Invoice[] = [
-    { id: 5, userId: 1, name: "Umbrella Corp", amount: 800, status: "completed" },
+  const invoices: InvoiceDTO[] = [
+    { id: "5", userId: "1", name: "Umbrella Corp", amount: 800, status: "completed" },
   ];
 
   requestMock.mockImplementationOnce(() => httpOk(invoices));
@@ -192,12 +192,12 @@ test("clicking Delete calls DELETE /invoices/:id", async () => {
 });
 
 test("after Delete succeeds the invoices query is refetched and updated list is shown", async () => {
-  const invoices: Invoice[] = [
-    { id: 1, userId: 1, name: "Acme Corp", amount: 1200, status: "completed" },
-    { id: 2, userId: 1, name: "Globex Inc", amount: 450, status: "inprogress" },
+  const invoices: InvoiceDTO[] = [
+    { id: "1", userId: "1", name: "Acme Corp", amount: 1200, status: "completed" },
+    { id: "2", userId: "1", name: "Globex Inc", amount: 450, status: "inprogress" },
   ];
-  const invoicesAfterDelete: Invoice[] = [
-    { id: 2, userId: 1, name: "Globex Inc", amount: 450, status: "inprogress" },
+  const invoicesAfterDelete: InvoiceDTO[] = [
+    { id: "2", userId: "1", name: "Globex Inc", amount: 450, status: "inprogress" },
   ];
 
   requestMock.mockImplementationOnce(() => httpOk(invoices));
@@ -225,8 +225,8 @@ test("after Delete succeeds the invoices query is refetched and updated list is 
 });
 
 test("submitting the edit modal calls PATCH and closes on success", async () => {
-  const invoices: Invoice[] = [
-    { id: 2, userId: 1, name: "Wayne Enterprises", amount: 500, status: "failed" },
+  const invoices: InvoiceDTO[] = [
+    { id: "2", userId: "2", name: "Wayne Enterprises", amount: 500, status: "failed" },
   ];
 
   requestMock.mockImplementationOnce(() => httpOk(invoices));

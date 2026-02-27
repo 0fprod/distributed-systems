@@ -1,6 +1,7 @@
-export class UserWorkerPersistenceError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "UserWorkerPersistenceError";
-  }
+export class UserWorkerPersistenceError {
+  readonly type = "persistence_error" as const;
+  constructor(
+    readonly message: string,
+    readonly cause?: unknown,
+  ) {}
 }

@@ -16,6 +16,36 @@ Full architecture details: see `architecture.md`
 **Ownership**: Invoice.userId NOT NULL — every invoice must have an owner.
 **Ownership enforcement**: DELETE uses compound WHERE `{ id: id.value, userId: userId.value }` — atomic. PATCH (retry) uses `Guid.equals()` before status guard, returns `forbidden`. Routes map `not_found` → 404, `forbidden` → 403.
 
+## Error Pattern (unified — no extends Error, no instanceof)
+
+All domain errors are **plain classes** with `readonly type` literal discriminator. Discriminate via `switch (error.type)` — never `instanceof` or `"type" in error`.
+
+```ts
+class InvoiceNotFoundError {
+  readonly type = "not_found" as const;
+  constructor(readonly message: string) {}
+}
+class InvoicePersistenceError {
+  readonly type = "persistence_error" as const;
+  constructor(
+    readonly message: string,
+    readonly cause?: unknown,
+  ) {}
+}
+```
+
+Type literals used per domain:
+
+- Invoice: `"not_found"`, `"forbidden"`, `"invalid_status"`, `"persistence_error"`
+- User: `"weak_password"`, `"duplicate_email"`, `"not_found"`, `"persistence_error"`, `"invalid_credentials"`
+- Worker Invoice: `"persistence_error"`; Worker User: `"persistence_error"`
+
+Routes use `switch (error.type)` and call `logger.error({ err: error.cause }, error.message)` before returning 500.
+Repositories call `logger.error({ err: e }, "...")` in every `catch` block.
+Worker handler guard clauses call `logger.error({ invoiceId, err: error.cause }, error.message)` before publishing FAILED and throwing.
+`loginUserHandler` maps `UserNotFoundError` → `InvalidCredentialsError` (security: don't leak user existence).
+`registerUserHandler` return type includes `UserPersistenceError` (not just `WeakPasswordError | DuplicateEmailError`).
+
 ## Domain Entities (Classes, NOT interfaces)
 
 `BackendInvoice` and `BackendUser` are **classes** with private constructor + static `create()` factory + getters.

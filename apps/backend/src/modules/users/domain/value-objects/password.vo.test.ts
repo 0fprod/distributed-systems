@@ -12,7 +12,7 @@ describe("Password Value Object", () => {
     const result = await Password.create("abc");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.name).toBe("WeakPasswordError");
+      expect(result.error.type).toBe("weak_password");
     }
   });
 

@@ -1,5 +1,6 @@
 import { Elysia, t } from "elysia";
 
+import { createLogger } from "@distributed-systems/logger";
 import { publish } from "@distributed-systems/rabbitmq";
 import { ApiRoutes } from "@distributed-systems/shared";
 
@@ -8,15 +9,11 @@ import { deleteInvoiceHandler } from "#invoicing/application/commands/delete-inv
 import { retryInvoiceHandler } from "#invoicing/application/commands/retry-invoice/retry-invoice.handler";
 import type { IMessagePublisher } from "#invoicing/application/ports/message-publisher.port";
 import { listInvoicesHandler } from "#invoicing/application/queries/list-invoices/list-invoices.handler";
-import {
-  InvoiceForbiddenError,
-  InvoiceInvalidStatusError,
-  InvoiceNotFoundError,
-  InvoicePersistenceError,
-} from "#invoicing/domain/errors/invoice.errors";
 import { prismaInvoiceRepository } from "#invoicing/infrastructure/repositories/prisma-invoice.repository";
 import { toInvoiceDTO } from "#invoicing/presentation/http/invoice.mapper";
 import { authPlugin } from "#shared/plugins/auth.plugin";
+
+const logger = createLogger("invoice-routes");
 
 const repository = prismaInvoiceRepository;
 const publisher: IMessagePublisher = { publish };
@@ -34,6 +31,7 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
       .get("/", async ({ status, currentUser }) => {
         const result = await listInvoicesHandler(repository, currentUser.userId);
         if (!result.ok) {
+          logger.error({ err: result.error.cause }, result.error.message);
           return status(500, { message: result.error.message });
         }
         return result.value.map(toInvoiceDTO);
@@ -52,6 +50,7 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
 
           const result = await createInvoiceHandler(createInvoiceCommand, deps);
           if (!result.ok) {
+            logger.error({ err: result.error.cause }, result.error.message);
             return status(500, { message: result.error.message });
           }
           return status(201, result.value);
@@ -78,8 +77,17 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
 
           if (!result.ok) {
             const error = result.error;
-            const statusCode = getStatusCodeForError(error);
-            return status(statusCode, { message: error.message });
+            switch (error.type) {
+              case "not_found":
+                return status(404, { message: error.message });
+              case "forbidden":
+                return status(403, { message: error.message });
+              case "invalid_status":
+                return status(400, { message: error.message });
+              case "persistence_error":
+                logger.error({ err: error.cause }, error.message);
+                return status(500, { message: error.message });
+            }
           }
 
           return result.value;
@@ -100,24 +108,15 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
         );
         if (!result.ok) {
           const error = result.error;
-          const statusCode = getStatusCodeForError(error);
-          return status(statusCode, { message: error.message });
+          switch (error.type) {
+            case "not_found":
+              return status(404, { message: error.message });
+            case "persistence_error":
+              logger.error({ err: error.cause }, error.message);
+              return status(500, { message: error.message });
+          }
         }
         return status(204, null);
       })
   );
-}
-
-function getStatusCodeForError(error: Error): number {
-  if (error instanceof InvoicePersistenceError) {
-    return 500;
-  } else if (error instanceof InvoiceForbiddenError) {
-    return 403;
-  } else if (error instanceof InvoiceNotFoundError) {
-    return 404;
-  } else if (error instanceof InvoiceInvalidStatusError) {
-    return 400;
-  }
-
-  return 400; // Default to Bad Request for unknown error types
 }

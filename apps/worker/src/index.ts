@@ -1,5 +1,9 @@
+import { createLogger } from "@distributed-systems/logger";
+
 import { startInvoiceCreatedConsumer } from "#invoicing/infrastructure/messaging/invoice-created.consumer";
+
+const logger = createLogger("worker");
 
 await startInvoiceCreatedConsumer();
 
-console.log("[worker] started — consuming invoices.created");
+logger.info("worker started");

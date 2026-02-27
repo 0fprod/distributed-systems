@@ -1,7 +1,10 @@
+import { createLogger } from "@distributed-systems/logger";
 import { subscribe } from "@distributed-systems/rabbitmq";
 import { InvoiceEvents, InvoiceExchanges } from "@distributed-systems/shared";
 
 import { wsConnections } from "#invoicing/presentation/http/ws.routes";
+
+const logger = createLogger("invoice-consumer");
 
 interface InvoiceInProgressPayload {
   invoiceId: string;
@@ -24,7 +27,7 @@ function isInvoiceInProgressPayload(v: unknown): v is InvoiceInProgressPayload {
 export async function startInvoiceInProgressConsumer(): Promise<void> {
   await subscribe(InvoiceExchanges.INPROGRESS, async (payload) => {
     if (!isInvoiceInProgressPayload(payload)) {
-      console.warn("[consumer] unexpected invoices.inprogress payload", payload);
+      logger.warn({ exchange: InvoiceExchanges.INPROGRESS, payload }, "unexpected payload");
       return;
     }
 
@@ -40,6 +43,6 @@ export async function startInvoiceInProgressConsumer(): Promise<void> {
       }
     }
 
-    console.log(`[consumer] broadcasted invoice:inprogress for invoiceId=${payload.invoiceId}`);
+    logger.info({ invoiceId: payload.invoiceId }, "invoice:inprogress broadcasted");
   });
 }

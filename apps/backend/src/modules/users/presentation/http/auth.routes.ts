@@ -1,10 +1,13 @@
 import { jwt } from "@elysiajs/jwt";
 import { Elysia, t } from "elysia";
 
+import { createLogger } from "@distributed-systems/logger";
 import { ApiRoutes } from "@distributed-systems/shared";
 
 import { loginUserHandler } from "#users/application/commands/login-user/login-user.handler";
 import { prismaUserRepository } from "#users/infrastructure/repositories/prisma-user.repository";
+
+const logger = createLogger("auth-routes");
 
 const SESSION_MAX_AGE = 7 * 24 * 60 * 60; // 7 days
 const JWT_EXP = "7d";
@@ -31,7 +34,14 @@ export function authRoutes({ jwtSecret }: AuthRoutesOptions) {
           );
 
           if (!result.ok) {
-            return status(401, { message: result.error.message });
+            const error = result.error;
+            switch (error.type) {
+              case "invalid_credentials":
+                return status(401, { message: error.message });
+              case "persistence_error":
+                logger.error({ err: error.cause }, error.message);
+                return status(500, { message: error.message });
+            }
           }
 
           const token = await jwt.sign({

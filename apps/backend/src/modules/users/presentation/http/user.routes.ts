@@ -1,10 +1,13 @@
 import { Elysia, t } from "elysia";
 
+import { createLogger } from "@distributed-systems/logger";
 import { ApiRoutes } from "@distributed-systems/shared";
 
 import { authPlugin } from "#shared/plugins/auth.plugin";
 import { registerUserHandler } from "#users/application/commands/register-user/register-user.handler";
 import { prismaUserRepository } from "#users/infrastructure/repositories/prisma-user.repository";
+
+const logger = createLogger("user-routes");
 
 interface UserRoutesOptions {
   jwtSecret: string;
@@ -23,7 +26,15 @@ export function userRoutes({ jwtSecret }: UserRoutesOptions) {
           );
 
           if (!result.ok) {
-            return status(400, { message: result.error.message });
+            const error = result.error;
+            switch (error.type) {
+              case "weak_password":
+              case "duplicate_email":
+                return status(400, { message: error.message });
+              case "persistence_error":
+                logger.error({ err: error.cause }, error.message);
+                return status(500, { message: error.message });
+            }
           }
 
           return status(201, { id: result.value.id });

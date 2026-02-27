@@ -1,5 +1,6 @@
 import { Elysia } from "elysia";
 
+import { createLogger } from "@distributed-systems/logger";
 import { ApiRoutes } from "@distributed-systems/shared";
 
 import { startInvoiceCompletedConsumer } from "#invoicing/infrastructure/messaging/invoice-completed.consumer";
@@ -9,6 +10,8 @@ import { invoiceRoutes } from "#invoicing/presentation/http/invoice.routes";
 import { wsRoutes } from "#invoicing/presentation/http/ws.routes";
 import { authRoutes } from "#users/presentation/http/auth.routes";
 import { userRoutes } from "#users/presentation/http/user.routes";
+
+const logger = createLogger("backend");
 
 // Single source of truth for the JWT secret, passed explicitly to all modules
 // that require it.
@@ -20,6 +23,17 @@ await startInvoiceCompletedConsumer();
 await startInvoiceFailedConsumer();
 
 const app = new Elysia()
+  // HTTP logging hooks — placed before routes so they run for every request.
+  .onRequest(({ request }) => {
+    logger.info({ method: request.method, url: request.url }, "request");
+  })
+  .onAfterResponse(({ request, set }) => {
+    logger.info({ method: request.method, url: request.url, status: set.status }, "response");
+  })
+  .onError(({ request, error }) => {
+    logger.error({ method: request.method, url: request.url, err: error }, "error");
+  })
+
   .get(ApiRoutes.HEALTH, () => ({ status: "ok" }))
 
   // Routes are grouped by domain module. Each factory receives the necessary
@@ -31,7 +45,7 @@ const app = new Elysia()
 
   .listen({ port: Number(process.env.PORT ?? 3000), hostname: "0.0.0.0" });
 
-console.log(`[backend] running on http://0.0.0.0:${app.server?.port}`);
+logger.info({ port: app.server?.port }, "backend started");
 
 process.on("SIGTERM", () => {
   app.stop();
