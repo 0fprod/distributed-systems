@@ -8,16 +8,18 @@ import { prismaUserRepository } from "#invoicing/infrastructure/repositories/pri
 import { invoicePublisher } from "./invoice-publisher";
 
 interface InvoiceCreatedPayload {
-  invoiceId: number;
-  userId: number;
+  invoiceId: string;
+  userId: string;
 }
 
+// Type guard: validates the message shape from the RabbitMQ fanout exchange.
+// IDs are UUID strings (changed from numbers when schema migrated to uuid()).
 function isInvoiceCreatedPayload(v: unknown): v is InvoiceCreatedPayload {
   return (
     typeof v === "object" &&
     v !== null &&
-    typeof (v as Record<string, unknown>).invoiceId === "number" &&
-    typeof (v as Record<string, unknown>).userId === "number"
+    typeof (v as Record<string, unknown>).invoiceId === "string" &&
+    typeof (v as Record<string, unknown>).userId === "string"
   );
 }
 

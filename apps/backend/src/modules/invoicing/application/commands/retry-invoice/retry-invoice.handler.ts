@@ -1,52 +1,65 @@
-import { InvoiceExchanges, InvoiceStatus } from "@distributed-systems/shared";
+import { Guid, InvoiceExchanges, InvoiceStatus } from "@distributed-systems/shared";
 
 import type { IMessagePublisher } from "#invoicing/application/ports/message-publisher.port";
-import type { InvoicePersistenceError } from "#invoicing/domain/errors/invoice.errors";
+import {
+  InvoiceForbiddenError,
+  InvoiceInvalidStatusError,
+  type InvoiceNotFoundError,
+  type InvoicePersistenceError,
+} from "#invoicing/domain/errors/invoice.errors";
+import { BackendInvoice } from "#invoicing/domain/invoice";
 import type { IInvoiceRepository } from "#invoicing/domain/repositories/invoice.repository.interface";
 import { err, ok } from "#shared/core/result";
 import type { Result } from "#shared/core/result";
 
 import type { RetryInvoiceCommand } from "./retry-invoice.command";
 
-type RetryInvoiceError =
-  | InvoicePersistenceError
-  | { message: string; type: "not_found" | "invalid_status" | "forbidden" };
+type Dependencies = {
+  repository: IInvoiceRepository;
+  publisher: IMessagePublisher;
+};
 
-// Handler: orchestrates the retry use case.
-// Guard 1: only invoices in "failed" status can be retried — prevents accidental
-// re-processing of completed or in-progress invoices.
-// Guard 2: ownership — only the invoice owner may retry it.
 export async function retryInvoiceHandler(
   command: RetryInvoiceCommand,
-  deps: { repository: IInvoiceRepository; publisher: IMessagePublisher },
-): Promise<Result<{ id: number }, RetryInvoiceError>> {
-  const findResult = await deps.repository.findById(command.invoiceId);
-  if (!findResult.ok) return findResult;
-  if (!findResult.value)
-    return err({ message: `Invoice ${command.invoiceId} not found`, type: "not_found" });
+  deps: Dependencies,
+): Promise<
+  Result<
+    { id: string },
+    | InvoiceNotFoundError
+    | InvoiceForbiddenError
+    | InvoicePersistenceError
+    | InvoiceInvalidStatusError
+  >
+> {
+  const findResult = await deps.repository.findById(Guid.fromString(command.invoiceId));
 
-  const current = findResult.value;
+  if (!findResult.ok) return err(findResult.error);
 
-  // Ownership check comes before status check: we must not reveal status
-  // information about invoices belonging to other users.
-  if (current.userId !== command.userId) {
-    return err({ message: `Forbidden`, type: "forbidden" });
+  const currentInvoice = findResult.value;
+
+  if (!currentInvoice.belongsToUser(Guid.fromString(command.userId))) {
+    return err(
+      new InvoiceForbiddenError(
+        `User ${command.userId} is not the owner of invoice ${command.invoiceId}`,
+      ),
+    );
   }
 
-  if (current.status !== InvoiceStatus.FAILED) {
-    return err({
-      message: `Invoice ${command.invoiceId} is not in failed status`,
-      type: "invalid_status",
-    });
+  if (currentInvoice.isNotFailed()) {
+    return err(
+      new InvoiceInvalidStatusError(`Invoice ${command.invoiceId} is not in failed status`),
+    );
   }
 
-  const updateResult = await deps.repository.update({
-    ...current,
+  const updated = BackendInvoice.create({
+    id: currentInvoice.id,
+    userId: currentInvoice.userId,
     name: command.name,
     amount: command.amount,
     status: InvoiceStatus.PENDING,
   });
 
+  const updateResult = await deps.repository.update(updated);
   if (!updateResult.ok) return updateResult;
 
   await deps.publisher.publish(InvoiceExchanges.CREATED, {

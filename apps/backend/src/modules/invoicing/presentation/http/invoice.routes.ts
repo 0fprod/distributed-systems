@@ -8,7 +8,14 @@ import { deleteInvoiceHandler } from "#invoicing/application/commands/delete-inv
 import { retryInvoiceHandler } from "#invoicing/application/commands/retry-invoice/retry-invoice.handler";
 import type { IMessagePublisher } from "#invoicing/application/ports/message-publisher.port";
 import { listInvoicesHandler } from "#invoicing/application/queries/list-invoices/list-invoices.handler";
+import {
+  InvoiceForbiddenError,
+  InvoiceInvalidStatusError,
+  InvoiceNotFoundError,
+  InvoicePersistenceError,
+} from "#invoicing/domain/errors/invoice.errors";
 import { prismaInvoiceRepository } from "#invoicing/infrastructure/repositories/prisma-invoice.repository";
+import { toInvoiceDTO } from "#invoicing/presentation/http/invoice.mapper";
 import { authPlugin } from "#shared/plugins/auth.plugin";
 
 const repository = prismaInvoiceRepository;
@@ -29,7 +36,7 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
         if (!result.ok) {
           return status(500, { message: result.error.message });
         }
-        return result.value;
+        return result.value.map(toInvoiceDTO);
       })
 
       // POST /invoices
@@ -39,7 +46,7 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
           const createInvoiceCommand = {
             name: body.name,
             amount: body.amount,
-            userId: currentUser.userId,
+            userId: currentUser.userId, // already a UUID string from the JWT
           };
           const deps = { repository, publisher };
 
@@ -62,7 +69,7 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
         "/:id",
         async ({ params, body, status, currentUser }) => {
           const command = {
-            invoiceId: Number(params.id),
+            invoiceId: params.id, // UUID string directly — no Number() coercion needed
             userId: currentUser.userId,
             name: body.name,
             amount: body.amount,
@@ -71,11 +78,8 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
 
           if (!result.ok) {
             const error = result.error;
-            if ("type" in error) {
-              if (error.type === "not_found") return status(404, { message: error.message });
-              if (error.type === "forbidden") return status(403, { message: error.message });
-            }
-            return status(400, { message: error.message });
+            const statusCode = getStatusCodeForError(error);
+            return status(statusCode, { message: error.message });
           }
 
           return result.value;
@@ -91,18 +95,29 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
       // DELETE /invoices/:id
       .delete("/:id", async ({ params, status, currentUser }) => {
         const result = await deleteInvoiceHandler(
-          { invoiceId: Number(params.id), userId: currentUser.userId },
+          { invoiceId: params.id, userId: currentUser.userId },
           { repository },
         );
         if (!result.ok) {
           const error = result.error;
-          if ("type" in error) {
-            if (error.type === "not_found") return status(404, { message: error.message });
-            if (error.type === "forbidden") return status(403, { message: error.message });
-          }
-          return status(500, { message: error.message });
+          const statusCode = getStatusCodeForError(error);
+          return status(statusCode, { message: error.message });
         }
         return status(204, null);
       })
   );
+}
+
+function getStatusCodeForError(error: Error): number {
+  if (error instanceof InvoicePersistenceError) {
+    return 500;
+  } else if (error instanceof InvoiceForbiddenError) {
+    return 403;
+  } else if (error instanceof InvoiceNotFoundError) {
+    return 404;
+  } else if (error instanceof InvoiceInvalidStatusError) {
+    return 400;
+  }
+
+  return 400; // Default to Bad Request for unknown error types
 }

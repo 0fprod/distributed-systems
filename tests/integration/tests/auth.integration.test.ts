@@ -97,9 +97,11 @@ describe("Authentication — GET /me", () => {
 
     // Assert
     expect(meRes.status).toBe(200);
-    const body = (await meRes.json()) as { id: number; email: string };
+    // id is now a UUID string (was a number before IDs migrated to uuid())
+    const body = (await meRes.json()) as { id: string; email: string };
     expect(body.email).toBe("carol@example.com");
-    expect(body.id).toBeNumber();
+    expect(typeof body.id).toBe("string");
+    expect(body.id.length).toBeGreaterThan(0);
   }, 15_000);
 
   it("returns 401 when no session cookie is present", async () => {

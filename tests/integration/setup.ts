@@ -187,7 +187,7 @@ export async function startStack(): Promise<Stack> {
 
 export interface LoginResult {
   cookie: string;
-  userId: number;
+  userId: string; // UUID string — changed from number when IDs migrated to uuid()
 }
 
 // Logs in with the given credentials and returns the session cookie and userId.
@@ -219,14 +219,16 @@ export async function loginAs(
   });
   if (!meRes.ok) throw new Error(`GET /me failed: ${meRes.status}`);
 
-  const { id: userId } = (await meRes.json()) as { id: number; email: string };
+  const { id: userId } = (await meRes.json()) as { id: string; email: string };
 
   return { cookie, userId };
 }
 
+// Waits until the given invoice reaches expectedStatus by polling GET /invoices.
+// invoiceId is now a UUID string.
 export async function waitForStatus(
   baseUrl: string,
-  invoiceId: number,
+  invoiceId: string,
   expectedStatus: string,
   timeoutMs = 20_000,
   sessionCookie?: string,
@@ -236,7 +238,7 @@ export async function waitForStatus(
     const headers: Record<string, string> = {};
     if (sessionCookie) headers["Cookie"] = sessionCookie;
     const res = await fetch(`${baseUrl}${ApiRoutes.INVOICES}`, { headers });
-    const invoices = (await res.json()) as Array<{ id: number; status: string }>;
+    const invoices = (await res.json()) as Array<{ id: string; status: string }>;
     if (invoices.find((i) => i.id === invoiceId)?.status === expectedStatus) return;
     await Bun.sleep(300);
   }

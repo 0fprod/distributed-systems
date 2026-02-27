@@ -10,24 +10,21 @@ interface Deps {
   userRepository: IUserRepository;
 }
 
-// Returns the same InvalidCredentialsError whether the user does not exist or
-// the password is wrong. This is intentional — it prevents user enumeration
-// attacks where an attacker could distinguish missing accounts from wrong passwords.
 export async function loginUserHandler(
   command: LoginUserCommand,
   deps: Deps,
-): Promise<Result<{ id: number; email: string }, InvalidCredentialsError>> {
-  const user = await deps.userRepository.findByEmail(command.email);
+): Promise<Result<{ id: string; email: string }, InvalidCredentialsError>> {
+  const findResult = await deps.userRepository.findByEmail(command.email); // BackendUser | null
 
-  if (!user) {
-    return err(new InvalidCredentialsError());
+  if (!findResult.ok) {
+    return err(findResult.error);
   }
-
+  const user = findResult.value;
   const isValid = await bcrypt.compare(command.password, user.passwordHash);
 
   if (!isValid) {
     return err(new InvalidCredentialsError());
   }
 
-  return ok({ id: user.id, email: user.email });
+  return ok({ id: user.id.value, email: user.email });
 }

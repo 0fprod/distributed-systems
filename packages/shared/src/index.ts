@@ -1,8 +1,10 @@
-export interface User {
-  id: number;
+// UserDTO is the public transport shape for User data (HTTP responses, frontend).
+// It deliberately excludes passwordHash — that field is an infrastructure detail
+// used only by the backend's own domain layer (BackendUser).
+export interface UserDTO {
+  id: string;
   name: string;
   email: string;
-  passwordHash: string;
 }
 
 export const InvoiceStatus = {
@@ -14,10 +16,13 @@ export const InvoiceStatus = {
 
 export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
 
-export interface Invoice {
-  id: number;
+// InvoiceDTO is the public transport shape for Invoice data.
+// IDs are UUIDs (string) to match the Prisma schema and avoid leaking
+// auto-increment sequences. Both id and userId are strings.
+export interface InvoiceDTO {
+  id: string;
   // userId links every invoice to its owner; required for ownership enforcement.
-  userId: number;
+  userId: string;
   name: string;
   amount: number;
   status: InvoiceStatus;
@@ -46,4 +51,5 @@ export const InvoiceEvents = {
   FAILED: "invoice:failed",
 } as const;
 
+export { Guid } from "./value-objects/guid";
 export { processFakeInvoice, sleep } from "./utils";

@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from "bun:test";
 
-import type { Invoice } from "@distributed-systems/shared";
+import type { InvoiceDTO } from "@distributed-systems/shared";
 import { ApiRoutes, InvoiceStatus } from "@distributed-systems/shared";
 
 import { givenAnInvoice } from "../builders/invoice.builder";
@@ -8,7 +8,7 @@ import { type Stack, loginAs, waitForStatus } from "../setup";
 
 let ctx: Stack;
 let sessionCookie: string;
-let userId: number;
+let userId: string; // UUID string since IDs migrated to uuid()
 
 beforeAll(() => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,7 +46,9 @@ describe("Invoice integration", () => {
     });
 
     expect(postRes.status).toBe(201);
-    const { id } = (await postRes.json()) as Pick<Invoice, "id">;
+    const { id } = (await postRes.json()) as Pick<InvoiceDTO, "id">;
+    // id is now a UUID string
+    expect(typeof id).toBe("string");
 
     await waitForStatus(ctx.baseUrl, id, InvoiceStatus.COMPLETED, 20_000, sessionCookie);
 
@@ -54,7 +56,7 @@ describe("Invoice integration", () => {
     const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
       headers: { Cookie: sessionCookie },
     });
-    const invoices = (await listRes.json()) as Invoice[];
+    const invoices = (await listRes.json()) as InvoiceDTO[];
 
     expect(invoices).toHaveLength(1);
     expect(invoices[0]).toMatchObject({
@@ -81,7 +83,7 @@ describe("Invoice integration", () => {
     const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
       headers: { Cookie: sessionCookie },
     });
-    const invoices = (await listRes.json()) as Invoice[];
+    const invoices = (await listRes.json()) as InvoiceDTO[];
     expect(invoices).toHaveLength(0);
   }, 15_000);
 
@@ -108,7 +110,7 @@ describe("Invoice integration", () => {
     const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
       headers: { Cookie: sessionCookie },
     });
-    const invoices = (await listRes.json()) as Invoice[];
+    const invoices = (await listRes.json()) as InvoiceDTO[];
 
     expect(invoices).toHaveLength(1);
     expect(invoices[0]).toMatchObject({
@@ -158,8 +160,8 @@ describe("Invoice integration", () => {
       headers: { Cookie: sessionCookie },
     });
 
-    // Assert — the server must reject the request (404 to avoid leaking ownership).
-    expect(deleteRes.status).toBe(404);
+    // Assert — the server must reject the request (403 to avoid leaking ownership).
+    expect(deleteRes.status).toBe(403);
   }, 15_000);
 
   it("user A cannot retry an invoice belonging to user B", async () => {
@@ -217,7 +219,7 @@ describe("Invoice integration", () => {
     const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
       headers: { Cookie: sessionCookie },
     });
-    const invoicesA = (await listRes.json()) as Invoice[];
+    const invoicesA = (await listRes.json()) as InvoiceDTO[];
 
     // Assert — user A sees nothing (invoice belongs to B).
     expect(invoicesA).toHaveLength(0);
@@ -226,7 +228,7 @@ describe("Invoice integration", () => {
     const listResB = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
       headers: { Cookie: cookieB },
     });
-    const invoicesB = (await listResB.json()) as Invoice[];
+    const invoicesB = (await listResB.json()) as InvoiceDTO[];
     expect(invoicesB).toHaveLength(1);
     expect(invoicesB[0]).toMatchObject({ name: "B Invoice" });
   }, 15_000);

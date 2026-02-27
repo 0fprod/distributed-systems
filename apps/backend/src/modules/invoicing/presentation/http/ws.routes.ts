@@ -7,19 +7,20 @@ import { authPlugin } from "#shared/plugins/auth.plugin";
 // Map of userId → set of send functions, one per active WS connection for that user.
 // Using a Map<userId, Set<SendFn>> instead of a flat Set so consumers can route
 // events only to the owner of the invoice, not broadcast to everyone.
+// userId is now a UUID string (was previously a number).
 type SendFn = (data: string) => void;
 
-export const wsConnections = new Map<number, Set<SendFn>>();
+export const wsConnections = new Map<string, Set<SendFn>>();
 
 // Registry to map the raw WS object back to { userId, send } for cleanup on close.
-const wsRegistry = new Map<object, { userId: number; send: SendFn }>();
+const wsRegistry = new Map<object, { userId: string; send: SendFn }>();
 
 // wsRoutes is a factory so the jwtSecret can be injected from index.ts,
 // keeping process.env reads centralised — same pattern as authRoutes.
 export function wsRoutes(jwtSecret: string) {
   return new Elysia().use(authPlugin({ jwtSecret })).ws(ApiRoutes.WS, {
     open(ws) {
-      const userId = ws.data.currentUser.userId;
+      const userId = ws.data.currentUser.userId; // string UUID
       const send: SendFn = (data) => ws.send(data);
 
       // Register the send fn under the user's id.

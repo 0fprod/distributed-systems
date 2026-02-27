@@ -13,7 +13,8 @@ import { Elysia } from "elysia";
 // Usage:
 //   new Elysia().use(authPlugin({ jwtSecret: "..." }))
 //
-// After use(), handlers receive `currentUser: { userId: number; email: string }`.
+// After use(), handlers receive `currentUser: { userId: string; email: string }`.
+// userId is a UUID string (previously a number — changed when IDs migrated to UUID).
 
 interface AuthPluginOptions {
   jwtSecret: string;
@@ -24,7 +25,7 @@ export function authPlugin({ jwtSecret }: AuthPluginOptions) {
     new Elysia({ name: "auth-plugin" })
       // Seed the currentUser placeholder — derive will overwrite it per-request.
       // This keeps the TypeScript context typed correctly for downstream handlers.
-      .decorate("currentUser", { userId: 0, email: "" })
+      .decorate("currentUser", { userId: "", email: "" })
       .use(jwt({ name: "jwt", secret: jwtSecret }))
       .resolve({ as: "scoped" }, async ({ jwt, cookie, status }) => {
         // cookie is Record<string, Cookie<unknown>> — access by key.
@@ -37,7 +38,7 @@ export function authPlugin({ jwtSecret }: AuthPluginOptions) {
 
         const payload = await jwt.verify(sessionToken);
 
-        if (!payload || typeof payload.userId !== "number" || typeof payload.email !== "string") {
+        if (!payload || typeof payload.userId !== "string" || typeof payload.email !== "string") {
           return status(401, { message: "Unauthorized" });
         }
 

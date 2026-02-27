@@ -9,12 +9,23 @@
 //   const user = await givenAUser(prisma).withEmail("john@example.com").withPasswordHash("secret123").save();
 //   const draft = givenAUser(prisma).withName("John Doe").build(); // no DB write
 import type { PrismaClient } from "@distributed-systems/database";
-import { toDomainUser } from "@distributed-systems/database";
-import type { User } from "@distributed-systems/shared";
+import { toPrismaUserFields } from "@distributed-systems/database";
 
-// UserData matches the domain User interface from shared package, minus the id
-// (which is assigned by the database on insert).
-type UserData = Omit<User, "id">;
+// Internal builder state — mirrors what Prisma needs to create a User row.
+// id is omitted (DB assigns UUID); passwordHash maps to Prisma's `password` column.
+interface UserData {
+  name: string;
+  email: string;
+  passwordHash: string;
+}
+
+// The type returned by save() — includes the DB-assigned string UUID.
+export interface PersistedUser {
+  id: string;
+  name: string;
+  email: string;
+  passwordHash: string;
+}
 
 class UserBuilder {
   private readonly prisma: PrismaClient;
@@ -49,8 +60,8 @@ class UserBuilder {
     return { ...this.data };
   }
 
-  /** Persists the user to the database and returns the domain User. */
-  async save(): Promise<User> {
+  /** Persists the user to the database and returns all fields including the UUID id. */
+  async save(): Promise<PersistedUser> {
     const created = await this.prisma.user.create({
       data: {
         name: this.data.name,
@@ -60,7 +71,8 @@ class UserBuilder {
       },
     });
 
-    return toDomainUser(created);
+    // toPrismaUserFields includes id (UUID string) and passwordHash.
+    return toPrismaUserFields(created);
   }
 }
 

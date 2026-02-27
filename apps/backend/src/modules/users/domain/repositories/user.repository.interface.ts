@@ -1,13 +1,14 @@
-import type { User } from "@distributed-systems/shared";
-
 import type { Result } from "#shared/core/result";
-import type { DuplicateEmailError, UserPersistenceError } from "#users/domain/errors/user.errors";
+import type {
+  DuplicateEmailError,
+  UserNotFoundError,
+  UserPersistenceError,
+} from "#users/domain/errors/user.errors";
+import type { BackendUser } from "#users/domain/user";
 
 export interface IUserRepository {
-  save(user: {
-    name: string;
-    email: string;
-    passwordHash: string;
-  }): Promise<Result<{ id: number }, DuplicateEmailError | UserPersistenceError>>;
-  findByEmail(email: string): Promise<User | null>;
+  save(user: BackendUser): Promise<Result<void, DuplicateEmailError | UserPersistenceError>>;
+  findByEmail(
+    email: string,
+  ): Promise<Result<BackendUser, UserNotFoundError | UserPersistenceError>>;
 }

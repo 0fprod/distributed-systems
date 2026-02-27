@@ -17,7 +17,7 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
+  id        String    @id @default(uuid())
   name      String
   email     String    @unique
   password  String
@@ -27,7 +27,7 @@ model User {
 }
 
 model Invoice {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(uuid())
   name      String
   amount    Float
   // Mirrors the InvoiceStatus union in @distributed-systems/shared.
@@ -37,6 +37,6 @@ model Invoice {
   status    String   @default("pending")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  userId    Int
+  userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

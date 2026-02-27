@@ -4,16 +4,16 @@ import { InvoiceEvents, InvoiceExchanges } from "@distributed-systems/shared";
 import { wsConnections } from "#invoicing/presentation/http/ws.routes";
 
 interface InvoiceCompletedPayload {
-  invoiceId: number;
-  userId: number;
+  invoiceId: string;
+  userId: string;
 }
 
 function isInvoiceCompletedPayload(v: unknown): v is InvoiceCompletedPayload {
   return (
     typeof v === "object" &&
     v !== null &&
-    typeof (v as Record<string, unknown>).invoiceId === "number" &&
-    typeof (v as Record<string, unknown>).userId === "number"
+    typeof (v as Record<string, unknown>).invoiceId === "string" &&
+    typeof (v as Record<string, unknown>).userId === "string"
   );
 }
 

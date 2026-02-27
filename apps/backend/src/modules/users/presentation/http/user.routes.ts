@@ -10,9 +10,6 @@ interface UserRoutesOptions {
   jwtSecret: string;
 }
 
-/**
- * User module routes. Includes public registration and protected profile (/me).
- */
 export function userRoutes({ jwtSecret }: UserRoutesOptions) {
   return (
     new Elysia({ name: "user-routes" })

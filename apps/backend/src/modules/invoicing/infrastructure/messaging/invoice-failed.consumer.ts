@@ -4,16 +4,16 @@ import { InvoiceEvents, InvoiceExchanges } from "@distributed-systems/shared";
 import { wsConnections } from "#invoicing/presentation/http/ws.routes";
 
 interface InvoiceFailedPayload {
-  invoiceId: number;
-  userId: number;
+  invoiceId: string;
+  userId: string;
 }
 
 function isInvoiceFailedPayload(v: unknown): v is InvoiceFailedPayload {
   return (
     typeof v === "object" &&
     v !== null &&
-    typeof (v as Record<string, unknown>).invoiceId === "number" &&
-    typeof (v as Record<string, unknown>).userId === "number"
+    typeof (v as Record<string, unknown>).invoiceId === "string" &&
+    typeof (v as Record<string, unknown>).userId === "string"
   );
 }
 

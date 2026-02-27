@@ -1,15 +1,11 @@
-import {
-  type Invoice,
-  InvoiceExchanges,
-  InvoiceStatus,
-  type User,
-  processFakeInvoice,
-} from "@distributed-systems/shared";
+import { InvoiceExchanges, InvoiceStatus, processFakeInvoice } from "@distributed-systems/shared";
 
 import type { InvoiceWorkerPersistenceError } from "#invoicing/domain/errors/invoice.errors";
 import type { UserWorkerPersistenceError } from "#invoicing/domain/errors/user.errors";
 import type { IInvoiceRepository } from "#invoicing/domain/repositories/invoice.repository.interface";
 import type { IUserRepository } from "#invoicing/domain/repositories/user.repository.interface";
+import type { WorkerInvoice } from "#invoicing/domain/worker-invoice";
+import type { WorkerUser } from "#invoicing/domain/worker-user";
 import type { Result } from "#shared/core/result";
 
 import type { IMessagePublisher } from "../../ports/message-publisher.port";
@@ -22,14 +18,14 @@ type Dependencies = {
 };
 
 // Handler orchestrates the invoice processing use case:
-//   1. Call processFakeInvoice (domain work simulation — 3 s delay)
+//   1. Call processFakeInvoice (domain work simulation — 10 s delay)
 //   2. Persist the status change to "completed" in the DB
 //   3. Publish an integration event so the backend can notify WS clients
 export async function processInvoiceHandler(
   command: ProcessInvoiceCommand,
   deps: Dependencies,
 ): Promise<void> {
-  const { invoiceId, userId } = command;
+  const { invoiceId, userId } = command; // both are string UUIDs
 
   const [invoiceResult, userResult] = await Promise.all([
     deps.invoiceRepository.findById(invoiceId),
@@ -45,7 +41,7 @@ export async function processInvoiceHandler(
   await deps.invoiceRepository.update({ ...invoice, status: InvoiceStatus.INPROGRESS });
   await deps.publisher.publish(InvoiceExchanges.INPROGRESS, { invoiceId, userId: user.id });
 
-  await processFakeInvoice(invoiceId);
+  await processFakeInvoice(invoiceId); // accepts string UUID
 
   await deps.invoiceRepository.update({ ...invoice, status: InvoiceStatus.COMPLETED });
   await deps.publisher.publish(InvoiceExchanges.COMPLETED, { invoiceId, userId: user.id });
@@ -59,10 +55,10 @@ export async function processInvoiceHandler(
 // gets a properly typed result without needing non-null assertions (!).
 
 async function ensureUserIsValid(
-  user: Result<User, UserWorkerPersistenceError>,
-  ids: { invoiceId: number; userId: number },
+  user: Result<WorkerUser, UserWorkerPersistenceError>,
+  ids: { invoiceId: string; userId: string },
   deps: Dependencies,
-): Promise<User> {
+): Promise<WorkerUser> {
   if (!user.ok) {
     await deps.publisher.publish(InvoiceExchanges.FAILED, ids);
     throw new Error(`Failed to retrieve user with id ${ids.userId}: ${user.error.message}`);
@@ -71,10 +67,10 @@ async function ensureUserIsValid(
 }
 
 async function ensureInvoiceIsValid(
-  invoice: Result<Invoice, InvoiceWorkerPersistenceError>,
-  ids: { invoiceId: number; userId: number },
+  invoice: Result<WorkerInvoice, InvoiceWorkerPersistenceError>,
+  ids: { invoiceId: string; userId: string },
   deps: Dependencies,
-): Promise<Invoice> {
+): Promise<WorkerInvoice> {
   if (!invoice.ok) {
     await deps.publisher.publish(InvoiceExchanges.FAILED, ids);
     throw new Error(

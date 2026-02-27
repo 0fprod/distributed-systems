@@ -1,21 +1,28 @@
-import { prisma, toDomainUser } from "@distributed-systems/database";
-import type { User } from "@distributed-systems/shared";
+import { prisma } from "@distributed-systems/database";
 
-import { err, ok } from "#shared/core/result";
-import { DuplicateEmailError, UserPersistenceError } from "#users/domain/errors/user.errors";
+import { type Result, err, ok } from "#shared/core/result";
+import {
+  DuplicateEmailError,
+  UserNotFoundError,
+  UserPersistenceError,
+} from "#users/domain/errors/user.errors";
 import type { IUserRepository } from "#users/domain/repositories/user.repository.interface";
+import type { BackendUser } from "#users/domain/user";
+import { toBackendUser } from "#users/infrastructure/mappers/user.mapper";
 
 export const prismaUserRepository: IUserRepository = {
-  async save(user) {
+  async save(user: BackendUser) {
     try {
-      const created = await prisma.user.create({
+      await prisma.user.create({
         data: {
+          id: user.id.value,
           name: user.name,
           email: user.email,
           password: user.passwordHash,
         },
       });
-      return ok({ id: created.id });
+
+      return ok(undefined);
     } catch (cause) {
       if (isDuplicateEmailError(cause)) {
         return err(new DuplicateEmailError(user.email));
@@ -24,14 +31,18 @@ export const prismaUserRepository: IUserRepository = {
     }
   },
 
-  async findByEmail(email: string): Promise<User | null> {
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+  async findByEmail(
+    email: string,
+  ): Promise<Result<BackendUser, UserPersistenceError | UserNotFoundError>> {
+    try {
+      const raw = await prisma.user.findUnique({ where: { email } });
 
-    if (!user) return null;
+      if (!raw) return err(new UserNotFoundError(email));
 
-    return toDomainUser(user);
+      return ok(toBackendUser(raw));
+    } catch (cause) {
+      return err(new UserPersistenceError("Failed to retrieve user", cause));
+    }
   },
 };
 

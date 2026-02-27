@@ -11,99 +11,142 @@ Full architecture details: see `architecture.md`
 
 **Bounded contexts**: Invoicing (Invoice aggregate), Users (login-user command added)
 **User auth**: JWT in HttpOnly cookie "session"; secret from env JWT_SECRET
-**Bounded context**: Invoicing | **Aggregate root**: `Invoice`
 **Status values**: `pending | inprogress | completed | failed` (`InvoiceStatus` in `@distributed-systems/shared`)
-**Domain model is the API contract** — no separate DTOs.
 **Key rule**: only `FAILED` invoices can be retried (guard in `retryInvoiceHandler`).
-**Ownership**: Invoice.userId is NOT NULL — every invoice must have an owner. `save()` and `findAll(userId)` on IInvoiceRepository are scoped by userId. Presentation layer extracts userId from `currentUser` (injected by authPlugin).
-**Ownership enforcement**: DELETE uses `prisma.invoice.deleteMany({ where: { id, userId } })` — atomic ownership check in the DB, returns `not_found` if count===0 (prevents enumeration leaking). PATCH (retry) checks `invoice.userId !== command.userId` in handler before status guard, returns `forbidden`. Routes map `not_found` → 404, `forbidden` → 403.
-**Invoice type**: `@distributed-systems/shared` `Invoice` includes `userId: number`. `toDomainInvoice` in `packages/database` maps it. Frontend test fixtures must include `userId`.
-**IInvoiceRepository.deleteById**: signature is `({ invoiceId, userId })`, returns `Result<void, InvoicePersistenceError | { message, type: "not_found" | "forbidden" }>`.
+**Ownership**: Invoice.userId NOT NULL — every invoice must have an owner.
+**Ownership enforcement**: DELETE uses compound WHERE `{ id: id.value, userId: userId.value }` — atomic. PATCH (retry) uses `Guid.equals()` before status guard, returns `forbidden`. Routes map `not_found` → 404, `forbidden` → 403.
+
+## Domain Entities (Classes, NOT interfaces)
+
+`BackendInvoice` and `BackendUser` are **classes** with private constructor + static `create()` factory + getters.
+
+- `BackendInvoice.create({ id: Guid, userId: Guid, name, amount, status })` — used for creation AND reconstitution
+- `BackendUser.create({ id: Guid, name, email, passwordHash })` — used for creation AND reconstitution
+- Object spread (`{ ...entity }`) does NOT work — always build a new instance explicitly with `Entity.create()`
+- Getters: `.id`, `.userId`, `.name`, `.amount`, `.status`, `.email`, `.passwordHash`
+
+## Entity Creation Flow (Handler → Repository)
+
+1. Handler calls `Guid.create()` to generate a new UUID
+2. Handler calls `Entity.create({ id, ...fields })` to build the entity
+3. Handler calls `repository.save(entity)` — receives `Result<void, Error>`
+4. Handler reads `entity.id.value` to return the id in the response
+5. Repository writes `entity.id.value` (string) to DB directly — no DB-generated IDs
+
+## Repository Contracts
+
+`IInvoiceRepository.save(invoice: BackendInvoice)` → `Result<void, InvoicePersistenceError>`
+`IInvoiceRepository.update(invoice: BackendInvoice)` → `Result<void, InvoicePersistenceError>`
+`IInvoiceRepository.findById(id: Guid)` → `Result<BackendInvoice | null, ...>`
+`IInvoiceRepository.findAll(userId: Guid)` → `Result<BackendInvoice[], ...>`
+`IInvoiceRepository.deleteById({ invoiceId: Guid, userId: Guid })` → `Result<void, ...>`
+`IUserRepository.save(user: BackendUser)` → `Result<void, DuplicateEmailError | UserPersistenceError>`
+`IUserRepository.findByEmail(email)` → `BackendUser | null`
+
+## Mapper Architecture (2 mappers per entity)
+
+**Infrastructure mappers** (Prisma → Domain entity):
+
+- `apps/backend/src/modules/invoicing/infrastructure/mappers/invoice.mapper.ts` → `toBackendInvoice(raw: PrismaInvoice): BackendInvoice`
+- `apps/backend/src/modules/users/infrastructure/mappers/user.mapper.ts` → `toBackendUser(raw: PrismaUser): BackendUser`
+- Uses `Guid.fromString()` — existing DB id, not new
+
+**Presentation mappers** (Domain entity → DTO for HTTP):
+
+- `apps/backend/src/modules/invoicing/presentation/http/invoice.mapper.ts` → `toInvoiceDTO(invoice: BackendInvoice): InvoiceDTO`
+- `apps/backend/src/modules/users/presentation/http/user.mapper.ts` → `toUserDTO(user: BackendUser): UserDTO`
+- Explicit `entity.id.value` — no implicit `toString()`; NEVER includes passwordHash
+
+**Routes use presentation mappers explicitly**: `result.value.map(toInvoiceDTO)` in GET /invoices.
+
+## ID Strategy (UUID)
+
+All IDs are **UUID strings** (`String @id @default(uuid())` in Prisma).
+`packages/shared` exports `Guid` VO + `InvoiceDTO`/`UserDTO` (string ids, no passwordHash in DTO).
+Backend domain uses `Guid` for typed IDs; application layer converts `string→Guid` via `Guid.fromString()`.
+Worker uses plain `string` ids — no Guid wrapper needed.
+
+## Domain Types Locations
+
+| Type             | File                                                         | Notes                       |
+| ---------------- | ------------------------------------------------------------ | --------------------------- |
+| `UserDTO`        | `packages/shared/src/index.ts`                               | id: string, no passwordHash |
+| `InvoiceDTO`     | `packages/shared/src/index.ts`                               | id: string, userId: string  |
+| `Guid`           | `packages/shared/src/value-objects/guid.ts`                  | UUID wrapper VO             |
+| `BackendUser`    | `apps/backend/src/modules/users/domain/user.ts`              | class, private constructor  |
+| `BackendInvoice` | `apps/backend/src/modules/invoicing/domain/invoice.ts`       | class, private constructor  |
+| `WorkerUser`     | `apps/worker/src/modules/invoicing/domain/worker-user.ts`    | interface, id: string       |
+| `WorkerInvoice`  | `apps/worker/src/modules/invoicing/domain/worker-invoice.ts` | interface, id: string       |
+
+## Database Package (`packages/database`)
+
+Barrel exports: `prisma`, `PrismaClient`, `Invoice`, `User` (Prisma model types), `toInvoiceDTO`, `toInvoiceDTOs`, `toPrismaUserFields`, `toUserDTO`
+`Invoice` and `User` re-exported so bounded-context mappers can type Prisma rows without reaching into generated client internals.
+`toPrismaUserFields` and `toInvoiceDTO` still used by integration test builders — do NOT remove.
+After schema changes, always regenerate client: `bun run --filter "@distributed-systems/database" db:generate`
 
 ## Subpath Aliases
 
-Backend `#invoicing/*` → `src/modules/invoicing/*.ts`, `#shared/*` → `src/shared/*.ts`
+Backend `#invoicing/*` → `src/modules/invoicing/*.ts`, `#shared/*` → `src/shared/*.ts`, `#users/*` → `src/modules/users/*.ts`
 Worker `#invoicing/*` → `src/modules/invoicing/*.ts`, `#shared/*` → `src/modules/shared/*.ts`
 Both defined in each app's `package.json` imports AND tsconfig paths.
 
 ## Database
 
 Provider: **MySQL** (NOT SQLite). Dev: `mysql://root:root@localhost:3306/invoices`
-Generated client: `packages/database/src/generated/client` (custom output — Bun doesn't create symlink)
-Barrel: `prisma`, `PrismaClient`, `toDomainInvoice`, `toDomainInvoices` from `@distributed-systems/database`
-Migrations: `packages/database/prisma/migrations/20250101000000_init/migration.sql`
-Note: `packages/database/.env` has local dev URL; integration tests override with container URL.
+Schema: `String @id @default(uuid())` for both User and Invoice (also userId in Invoice is String).
+Generated client: `packages/database/src/generated/client`
+Migrations: latest is `20260227000000_uuid_ids`
 
 ## RabbitMQ
 
-Package: `@distributed-systems/rabbitmq`
-
-- `publish(exchange, msg)` — fanout, durable, persistent
-- `subscribe(exchange, handler)` — exclusive+autoDelete queue (WS broadcast: every process gets all msgs)
-- `subscribeWork(exchange, queueName, handler)` — durable named queue + DLQ, prefetch=1 (competing consumers)
-- `InvoiceExchanges` stays in `@distributed-systems/shared` (application contract, not infra)
-- `IMessagePublisher` port is LOCAL to each app's `application/ports/` (bounded context autonomy)
-- Two separate connections: publisher + consumer (failure isolation)
-- Retry on connect: exponential backoff, 8 attempts, starting 1000 ms, max 10 000 ms
+Message payloads: `{ invoiceId: string, userId: string }` — plain UUID strings.
+`publish(exchange, msg)` / `subscribe(exchange, handler)` / `subscribeWork(exchange, queueName, handler)`
+Two separate connections; `InvoiceExchanges` in shared; `IMessagePublisher` port local to each app.
 
 ## Backend Structure
 
-`src/modules/invoicing/application/commands/`: create-invoice, delete-invoice, retry-invoice
-`src/modules/invoicing/application/queries/`: list-invoices
-`src/modules/invoicing/infrastructure/messaging/`: 3 consumers (completed, failed, inprogress) → WS broadcast
-`src/modules/invoicing/presentation/http/`: invoice.routes.ts + ws.routes.ts
-`src/modules/users/application/commands/`: register-user, login-user
-`src/modules/users/presentation/http/`: user.routes.ts, auth.routes.ts
-`src/shared/plugins/`: auth.plugin.ts (JWT guard — use on protected routes)
-WS: `wsConnections: Set<SendFn>` exported from ws.routes.ts, imported by consumers directly.
-Routes: GET /health, GET /invoices*, POST /invoices* → 201 {id}, PATCH /invoices/:id*, DELETE /invoices/:id* → 204
-POST /register, POST /login, POST /logout, GET /me (\* = requires auth cookie)
-Auth guard: `.use(authPlugin({ jwtSecret }))` — injects `currentUser: {userId, email}` via resolve({ as: "scoped" })
+Commands: create-invoice, delete-invoice, retry-invoice (string IDs in commands, Guid inside handlers)
+Queries: list-invoices (string userId arg, Guid.fromString inside handler)
+Consumers (3): completed/failed/inprogress → WS broadcast; payloads use string IDs
+WS: `wsConnections: Map<string, Set<SendFn>>` (key = userId UUID string)
+Auth guard: `currentUser: { userId: string; email: string }` — string UUID
 
 ## Worker Structure
 
-`src/index.ts` → `startInvoiceCreatedConsumer()` (no HTTP server)
 `subscribeWork(CREATED, "worker.invoices.created")` → `processInvoiceHandler`
-Flow: findById → validate → INPROGRESS+publish → processFakeInvoice (10s) → COMPLETED+publish
-On failure: mark FAILED in DB, publish FAILED exchange, nack → DLQ
-Worker `#shared/*` maps to `src/modules/shared/` (has its own local Result<T,E> copy)
+Uses `WorkerUser`/`WorkerInvoice` — plain string ids throughout (interfaces, not classes)
+Prisma user repo uses `select: { id, name, email }` — never fetches password
 
 ## Result Pattern
 
-`Result<T,E> = { ok: true; value: T } | { ok: false; error: E }` + `ok()` / `err()` constructors
+`Result<T,E> = { ok: true; value: T } | { ok: false; error: E }` + `ok()` / `err()`
 Backend: `apps/backend/src/shared/core/result.ts`
 Worker: `apps/worker/src/modules/shared/core/result.ts`
 
 ## Integration Tests
 
-Location: `tests/integration/` (monorepo root, NOT `integration-tests/`)
-Setup: MySqlContainer + RabbitMQContainer → migrate → spawn backend (port 3099) + worker as subprocesses
-Migrations: `Bun.spawnSync(["bun", "run", "--cwd", "packages/database", "prisma", "migrate", "deploy", ...], ...)`
-Builder: `givenAnInvoice(prisma).forUser(userId).withName().withAmount().withStatus().save()` — `.forUser()` is required (userId NOT NULL)
-Auth helpers: `loginAs(url, email, pw)` → cookie string; `getUserId(url, cookie)` → numeric userId via GET /me
-Timeouts: beforeAll=90s, end-to-end tests=30s (processFakeInvoice takes 10s)
-Clean state: `ctx.prisma.invoice.deleteMany()` + `ctx.prisma.user.deleteMany()` in beforeEach (invoice tests)
-PrismaClient: `new PrismaClient({ datasources: { db: { url: mysql.getConnectionUri() } } })`
-Backend port 3099 during tests (avoids conflict with docker-compose port 3000)
-waitForStatus: now accepts optional `sessionCookie` param (required since /invoices is protected)
+Location: `tests/integration/` (monorepo root)
+`givenAnInvoice(prisma).forUser(userId: string).save()` → `InvoiceDTO`
+`givenAUser(prisma).save()` → `PersistedUser { id: string, ... }`
+`loginAs(url, email, pw)` → `{ cookie, userId: string }`
+`waitForStatus(..., invoiceId: string, ...)`
+Backend port 3099 during tests
 
 ## Elysia Gotchas
 
-- Use `status(code, body)` from context — NOT `error()` (doesn't exist on Elysia context)
-- Handler functions (not classes): `createInvoiceHandler(command, deps)` with injected deps
-- WS: `wsConnections: Set<SendFn>` + `wsRegistry: Map<object, SendFn>` (ws.raw as key for cleanup)
-- `InvoicePersistenceError`: use `override readonly cause` (ES2022 base class conflict)
-- Barrel files in packages use relative imports (NOT `#*`) — `#*` resolves in consuming tsconfig context
-- Cookie access in generic context: use `cookie["key"]` (Record<string, Cookie<unknown>>) — NOT destructure
-- `noUncheckedIndexedAccess: true` → `cookie["key"]` may be undefined; use `?.value` + typeof guard
-- TS2742 portability error with jwt/jose: add `"declaration": false` to app tsconfig (apps don't publish types)
-- JWT plugin: `jwt({ name: "jwt", secret, exp: "7d" })` — use `.resolve({ as: "scoped" })` for auth guard
+- `status(code, body)` from context — NOT `error()`
+- `InvoicePersistenceError`: use `override readonly cause`
+- Barrel files use relative imports (NOT `#*`)
+- `cookie["key"]?.value` + typeof guard (`noUncheckedIndexedAccess: true`)
+- `"declaration": false` in app tsconfig to fix TS2742
+- JWT: `jwt({ name: "jwt", secret, exp: "7d" })` + `.resolve({ as: "scoped" })`
 
 ## Running the System
 
 ```sh
 docker compose up -d mysql rabbitmq
-bun run db:push                                     # apply schema to dev DB
+bun run db:push
 bun run --filter "@distributed-systems/backend" dev
 bun run --filter "@distributed-systems/worker" dev
 bun test --filter "@distributed-systems/integration-tests"

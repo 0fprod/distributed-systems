@@ -6,7 +6,7 @@ export const sleep = (ms: number): Promise<void> =>
 // Simulates the asynchronous work of generating an invoice PDF.
 // In a real system this would call a PDF library and upload to storage.
 // The worker calls this before marking the invoice as "completed".
-export const processFakeInvoice = async (invoiceId: number): Promise<void> => {
+export const processFakeInvoice = async (invoiceId: string): Promise<void> => {
   await sleep(10000); // simulate 10s processing
   console.log(`[worker] Invoice ${invoiceId} processed`);
 };

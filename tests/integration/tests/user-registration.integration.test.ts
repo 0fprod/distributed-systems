@@ -27,8 +27,10 @@ describe("User registration", () => {
 
     // Assert — HTTP
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { id: number };
-    expect(body.id).toBeNumber();
+    const body = (await res.json()) as { id: string };
+    // id is now a UUID string (was a number before IDs migrated to uuid())
+    expect(typeof body.id).toBe("string");
+    expect(body.id.length).toBeGreaterThan(0);
 
     // Assert — DB: user persisted with hashed password
     const user = await ctx.prisma.user.findUnique({ where: { email: "alice@example.com" } });

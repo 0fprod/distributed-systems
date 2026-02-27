@@ -1,11 +1,11 @@
-import type { Invoice, InvoiceStatus } from "@distributed-systems/shared";
+import type { InvoiceDTO, InvoiceStatus } from "@distributed-systems/shared";
 
 import type { Invoice as PrismaInvoice } from "../generated/client";
 
 // Anti-corruption layer: translates the Prisma-generated type (infrastructure)
-// into the domain Invoice interface (defined in @distributed-systems/shared).
-// The domain model is the canonical contract — Prisma is just a persistence detail.
-export function toDomainInvoice(raw: PrismaInvoice): Invoice {
+// into the InvoiceDTO (defined in @distributed-systems/shared).
+// IDs are already strings (UUID) in both Prisma and the DTO — no conversion needed.
+export function toInvoiceDTO(raw: PrismaInvoice): InvoiceDTO {
   return {
     id: raw.id,
     // Preserve the owner identity so the domain can enforce ownership rules.
@@ -19,6 +19,6 @@ export function toDomainInvoice(raw: PrismaInvoice): Invoice {
   };
 }
 
-export function toDomainInvoices(raws: PrismaInvoice[]): Invoice[] {
-  return raws.map(toDomainInvoice);
+export function toInvoiceDTOs(raws: PrismaInvoice[]): InvoiceDTO[] {
+  return raws.map(toInvoiceDTO);
 }

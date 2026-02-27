@@ -1,26 +1,28 @@
-import { prisma, toDomainInvoice, toDomainInvoices } from "@distributed-systems/database";
-import { InvoiceStatus } from "@distributed-systems/shared";
+import { prisma } from "@distributed-systems/database";
 
-import { InvoicePersistenceError } from "#invoicing/domain/errors/invoice.errors";
+import {
+  InvoiceNotFoundError,
+  InvoicePersistenceError,
+} from "#invoicing/domain/errors/invoice.errors";
+import type { BackendInvoice } from "#invoicing/domain/invoice";
 import type { IInvoiceRepository } from "#invoicing/domain/repositories/invoice.repository.interface";
+import { toBackendInvoice } from "#invoicing/infrastructure/mappers/invoice.mapper";
 import { err, ok } from "#shared/core/result";
 
-// Concrete repository: translates between the domain model and Prisma's persistence model.
-// Using the Result pattern instead of throwing keeps error paths explicit and typed —
-// the application layer decides how to handle persistence failures.
 export const prismaInvoiceRepository: IInvoiceRepository = {
-  async save(data) {
+  async save(invoice: BackendInvoice) {
     try {
-      const raw = await prisma.invoice.create({
-        // userId links the invoice to its owner — enforced at the DB level (NOT NULL + FK).
+      await prisma.invoice.create({
         data: {
-          name: data.name,
-          amount: data.amount,
-          status: InvoiceStatus.PENDING,
-          userId: data.userId,
+          id: invoice.id.value,
+          name: invoice.name,
+          amount: invoice.amount,
+          status: invoice.status,
+          userId: invoice.userId.value,
         },
       });
-      return ok(toDomainInvoice(raw));
+
+      return ok(undefined);
     } catch (e) {
       return err(new InvoicePersistenceError("Failed to create invoice", e));
     }
@@ -28,8 +30,9 @@ export const prismaInvoiceRepository: IInvoiceRepository = {
 
   async findById(id) {
     try {
-      const raw = await prisma.invoice.findUnique({ where: { id } });
-      return ok(raw ? toDomainInvoice(raw) : null);
+      const raw = await prisma.invoice.findUnique({ where: { id: id.value } });
+      if (!raw) return err(new InvoiceNotFoundError(`Invoice ${id.value} not found`));
+      return ok(toBackendInvoice(raw));
     } catch (e) {
       return err(new InvoicePersistenceError("Failed to find invoice", e));
     }
@@ -37,24 +40,25 @@ export const prismaInvoiceRepository: IInvoiceRepository = {
 
   async findAll(userId) {
     try {
-      // Scope the query to the requesting user's invoices only.
       const raws = await prisma.invoice.findMany({
-        where: { userId },
+        where: { userId: userId.value },
         orderBy: { createdAt: "desc" },
       });
-      return ok(toDomainInvoices(raws));
+
+      return ok(raws.map(toBackendInvoice));
     } catch (e) {
       return err(new InvoicePersistenceError("Failed to list invoices", e));
     }
   },
 
-  async update(invoice) {
+  async update(invoice: BackendInvoice) {
     try {
-      const raw = await prisma.invoice.update({
-        where: { id: invoice.id },
+      await prisma.invoice.update({
+        where: { id: invoice.id.value },
         data: { name: invoice.name, amount: invoice.amount, status: invoice.status },
       });
-      return ok(toDomainInvoice(raw));
+
+      return ok(undefined);
     } catch (e) {
       return err(new InvoicePersistenceError("Failed to update invoice", e));
     }
@@ -62,18 +66,14 @@ export const prismaInvoiceRepository: IInvoiceRepository = {
 
   async deleteById({ invoiceId, userId }) {
     try {
-      // deleteMany with a compound where clause is the atomic ownership check:
-      // if the invoice exists but belongs to another user, count will be 0 and
-      // we return a typed error instead of silently succeeding or throwing.
       const { count } = await prisma.invoice.deleteMany({
-        where: { id: invoiceId, userId },
+        where: { id: invoiceId.value, userId: userId.value },
       });
 
       if (count === 0) {
-        // We intentionally return "not_found" for both "does not exist" and
-        // "exists but owned by someone else" to avoid leaking ownership information
-        // through the API (enumeration prevention).
-        return err({ message: `Invoice ${invoiceId} not found`, type: "not_found" as const });
+        return err(
+          new InvoiceNotFoundError(`Invoice ${invoiceId.value} not found for user ${userId.value}`),
+        );
       }
 
       return ok(undefined);

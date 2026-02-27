@@ -22,9 +22,13 @@ export class UserPersistenceError extends Error {
   }
 }
 
-// Used when login credentials are invalid. The same error is returned whether
-// the email does not exist or the password is wrong — this prevents user
-// enumeration attacks (callers cannot distinguish between the two cases).
+export class UserNotFoundError extends Error {
+  constructor(email: string) {
+    super(`No user found with email "${email}"`);
+    this.name = "UserNotFoundError";
+  }
+}
+
 export class InvalidCredentialsError extends Error {
   constructor() {
     super("Invalid email or password");
