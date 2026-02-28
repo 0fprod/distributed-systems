@@ -79,6 +79,12 @@ async function getConsumerConnection(): Promise<amqplib.ChannelModel> {
   return consumerConn;
 }
 
+// Returns true when both the publisher and consumer connections are open.
+// Used by health check endpoints to report RabbitMQ connectivity status.
+export function isRabbitMQHealthy(): boolean {
+  return publisherConn !== null && consumerConn !== null;
+}
+
 export async function getConsumerChannel(id: string): Promise<amqplib.Channel> {
   if (consumerChannels.has(id)) return consumerChannels.get(id)!;
 

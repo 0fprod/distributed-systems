@@ -1,7 +1,6 @@
 import { Elysia } from "elysia";
 
 import { createLogger } from "@distributed-systems/logger";
-import { ApiRoutes } from "@distributed-systems/shared";
 
 import { startInvoiceCompletedConsumer } from "#invoicing/infrastructure/messaging/invoice-completed.consumer";
 import { startInvoiceFailedConsumer } from "#invoicing/infrastructure/messaging/invoice-failed.consumer";
@@ -9,6 +8,7 @@ import { startInvoiceInProgressConsumer } from "#invoicing/infrastructure/messag
 import { invoiceRoutes } from "#invoicing/presentation/http/invoice.routes";
 import { wsRoutes } from "#invoicing/presentation/http/ws.routes";
 import { requestIdPlugin } from "#shared/plugins/request-id.plugin";
+import { healthRoutes } from "#shared/routes/health.routes";
 import { authRoutes } from "#users/presentation/http/auth.routes";
 import { userRoutes } from "#users/presentation/http/user.routes";
 
@@ -46,7 +46,7 @@ const app = new Elysia()
     logger.error({ requestId, method: request.method, url: request.url, err: error }, "error");
   })
 
-  .get(ApiRoutes.HEALTH, () => ({ status: "ok" }))
+  .use(healthRoutes())
 
   // Routes are grouped by domain module. Each factory receives the necessary
   // configuration, such as the JWT secret for authentication/guards.
