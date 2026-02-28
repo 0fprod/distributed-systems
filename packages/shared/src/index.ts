@@ -31,6 +31,7 @@ export interface InvoiceDTO {
 export const ApiRoutes = {
   HEALTH: "/health",
   INVOICES: "/invoices",
+  CREATE_INVALID_INVOICE: "/invoices/invalid",
   REGISTER: "/register",
   LOGIN: "/login",
   LOGOUT: "/logout",

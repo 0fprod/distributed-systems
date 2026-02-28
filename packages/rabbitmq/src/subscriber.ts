@@ -33,8 +33,11 @@ export async function subscribe(
 
   await channel.assertExchange(exchange, "fanout", { durable: true });
 
-  // exclusive + autoDelete: queue lives only for the lifetime of this connection.
-  const { queue } = await channel.assertQueue("", { exclusive: true, autoDelete: true });
+  // Name: "<exchange>.consumer.<8-char uuid>" — readable in the RabbitMQ UI while
+  // still unique per connection. exclusive + autoDelete ensures it disappears
+  // when the connection closes (correct for broadcast/WS scenarios).
+  const queueName = `${exchange}.consumer.${crypto.randomUUID().slice(0, 8)}`;
+  const { queue } = await channel.assertQueue(queueName, { exclusive: true, autoDelete: true });
 
   await channel.bindQueue(queue, exchange, "");
 
