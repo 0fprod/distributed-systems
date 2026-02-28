@@ -1,36 +1,7 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-
-import { QueryKeys } from "#shared/query-keys";
-
-import { submitInvoice } from "./submit-invoice";
-
-interface InvoiceFormData {
-  name: string;
-  amount: string;
-}
-
-const INVALID_INVOICE_PAYLOAD = { name: "", amount: -1 };
+import { useGenerateInvoiceForm } from "./use-generate-invoice-form.hook";
 
 export function GenerateInvoiceForm() {
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState<InvoiceFormData>({ name: "", amount: "" });
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await submitInvoice(form);
-    await queryClient.invalidateQueries({ queryKey: QueryKeys.invoices });
-    setForm({ name: "", amount: "" });
-  }
-
-  async function handleGenerateInvalidInvoice() {
-    await fetch("/invoices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(INVALID_INVOICE_PAYLOAD),
-    });
-    await queryClient.invalidateQueries({ queryKey: QueryKeys.invoices });
-  }
+  const { form, setForm, handleSubmit, handleGenerateInvalidInvoice } = useGenerateInvoiceForm();
 
   return (
     <div className="space-y-3">

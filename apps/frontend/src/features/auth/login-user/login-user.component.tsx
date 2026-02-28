@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -18,11 +19,15 @@ export function LoginUserComponent({ onLoggedIn }: LoginUserComponentProps) {
     mutationFn: loginUser,
     onSuccess: async () => {
       await queryClient.refetchQueries({ queryKey: QueryKeys.me });
+      const user = queryClient.getQueryData<{ id: number; email: string }>(QueryKeys.me);
+      if (user) {
+        Sentry.setUser({ id: String(user.id), email: user.email });
+      }
       onLoggedIn();
     },
   });
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     mutation.mutate(form);
   }

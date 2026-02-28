@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
@@ -12,6 +13,7 @@ export function LogoutButton() {
   const mutation = useMutation({
     mutationFn: logoutUser,
     onSuccess: async () => {
+      Sentry.setUser(null);
       await queryClient.invalidateQueries({ queryKey: QueryKeys.me });
       navigate("/auth");
     },

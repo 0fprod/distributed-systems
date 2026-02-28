@@ -1,5 +1,5 @@
 import { LogoutButton } from "#features/auth/logout-user";
-import { GenerateInvoiceForm, InvoiceListFeature } from "#features/invoice";
+import { GenerateInvoiceFormFeature, InvoiceListFeature } from "#features/invoice";
 
 export function InvoicesPage() {
   return (
@@ -8,7 +8,7 @@ export function InvoicesPage() {
         <h2 className="text-xl font-semibold text-gray-800">Invoices</h2>
         <LogoutButton />
       </div>
-      <GenerateInvoiceForm />
+      <GenerateInvoiceFormFeature />
       <InvoiceListFeature />
     </div>
   );

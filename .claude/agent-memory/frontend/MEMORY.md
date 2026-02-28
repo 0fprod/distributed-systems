@@ -93,6 +93,26 @@
 - `ProtectedRoute` uses `<Outlet />` as the child placeholder — nest protected routes inside `<Route element={<ProtectedRoute />}>`
 - Vite proxy must include `/login`, `/logout`, `/me`, `/register` routes pointing to `http://localhost:3000`
 
+### Sentry Integration (@sentry/react 10.x)
+
+- Entry point: `src/instrument.ts` — imported as first side-effect in `main.tsx`
+- Init: `enabled: !!import.meta.env.VITE_SENTRY_DSN` disables Sentry when DSN is absent (dev)
+- `Sentry.reactErrorHandler()` return type clashes with React 19's `createRoot` options under `exactOptionalPropertyTypes: true` — use a plain bridge wrapper instead:
+  ```ts
+  const sentryErrorHandler = (
+    error: unknown,
+    errorInfo: { componentStack?: string | undefined },
+  ) => {
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: errorInfo.componentStack ?? null } },
+    });
+  };
+  ```
+- `Sentry.ErrorBoundary` wraps the `<Routes>` tree in `app.tsx`
+- `Sentry.setUser({ id, email })` called in login `onSuccess` after refetchQueries; `Sentry.setUser(null)` in logout `onSuccess`
+- `request.ts` injects `X-Request-ID: crypto.randomUUID()` on every fetch; on `status >= 500` calls `Sentry.captureMessage` with the response `x-request-id` header as a tag
+- DSN configured via `VITE_SENTRY_DSN` env var (see `apps/frontend/.env.example`)
+
 ### Testing Commands
 
 - From root: `bun test apps/frontend`

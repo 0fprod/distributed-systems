@@ -1,1 +1,1 @@
-export { GenerateInvoiceForm } from "./generate-invoice-form.component";
+export { GenerateInvoiceFormFeature } from "./generate-invoice-form.feature";

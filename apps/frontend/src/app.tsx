@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 
@@ -12,13 +13,17 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <Router>
         <div className="mx-auto max-w-3xl p-8">
-          <Routes>
-            <Route path="/auth" element={<AuthPage />} />
-            <Route element={<ProtectedRoute />}>
-              <Route path="/invoices" element={<InvoicesPage />} />
-            </Route>
-            <Route path="/" element={<Navigate to="/invoices" replace />} />
-          </Routes>
+          <Sentry.ErrorBoundary
+            fallback={<p>An unexpected error occurred. Please reload the page.</p>}
+          >
+            <Routes>
+              <Route path="/auth" element={<AuthPage />} />
+              <Route element={<ProtectedRoute />}>
+                <Route path="/invoices" element={<InvoicesPage />} />
+              </Route>
+              <Route path="/" element={<Navigate to="/invoices" replace />} />
+            </Routes>
+          </Sentry.ErrorBoundary>
         </div>
       </Router>
     </QueryClientProvider>

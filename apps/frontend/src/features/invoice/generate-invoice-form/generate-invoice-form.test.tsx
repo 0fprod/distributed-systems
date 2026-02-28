@@ -7,8 +7,8 @@ import { QueryKeys } from "#shared/query-keys";
 
 import { GenerateInvoiceForm } from "./generate-invoice-form.component";
 
-mock.module("./submit-invoice", () => ({
-  submitInvoice: mock(() => Promise.resolve()),
+mock.module("#shared/request", () => ({
+  request: mock(() => Promise.resolve(new Response(null, { status: 200 }))),
 }));
 
 function makeClient() {
