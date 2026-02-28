@@ -45,6 +45,15 @@ export const InvoiceExchanges = {
   FAILED: "invoices.failed",
 } as const;
 
+// Payload shape for all RabbitMQ invoice messages.
+// requestId is optional to remain compatible with legacy messages that
+// were published before correlation IDs were introduced.
+export interface InvoiceMessagePayload {
+  invoiceId: string;
+  userId: string;
+  requestId?: string;
+}
+
 export const InvoiceEvents = {
   INPROGRESS: "invoice:inprogress",
   COMPLETED: "invoice:completed",

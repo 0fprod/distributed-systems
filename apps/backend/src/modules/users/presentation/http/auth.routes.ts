@@ -1,9 +1,10 @@
 import { jwt } from "@elysiajs/jwt";
 import { Elysia, t } from "elysia";
 
-import { createLogger } from "@distributed-systems/logger";
+import { createLogger, runWithContext } from "@distributed-systems/logger";
 import { ApiRoutes } from "@distributed-systems/shared";
 
+import { requestIdPlugin } from "#shared/plugins/request-id.plugin";
 import { loginUserHandler } from "#users/application/commands/login-user/login-user.handler";
 import { prismaUserRepository } from "#users/infrastructure/repositories/prisma-user.repository";
 
@@ -22,42 +23,45 @@ interface AuthRoutesOptions {
 export function authRoutes({ jwtSecret }: AuthRoutesOptions) {
   return (
     new Elysia({ name: "auth-routes" })
+      .use(requestIdPlugin)
       .use(jwt({ name: "jwt", secret: jwtSecret, exp: JWT_EXP }))
 
       // POST /login — verify credentials, issue a signed JWT in an HttpOnly cookie.
       .post(
         ApiRoutes.LOGIN,
-        async ({ jwt, body, cookie, status }) => {
-          const result = await loginUserHandler(
-            { email: body.email, password: body.password },
-            { userRepository: prismaUserRepository },
-          );
+        async ({ jwt, body, cookie, status, requestId }) => {
+          return runWithContext(requestId, async () => {
+            const result = await loginUserHandler(
+              { email: body.email, password: body.password },
+              { userRepository: prismaUserRepository },
+            );
 
-          if (!result.ok) {
-            const error = result.error;
-            switch (error.type) {
-              case "invalid_credentials":
-                return status(401, { message: error.message });
-              case "persistence_error":
-                logger.error({ err: error.cause }, error.message);
-                return status(500, { message: error.message });
+            if (!result.ok) {
+              const error = result.error;
+              switch (error.type) {
+                case "invalid_credentials":
+                  return status(401, { message: error.message });
+                case "persistence_error":
+                  logger.error({ err: error.cause }, error.message);
+                  return status(500, { message: error.message });
+              }
             }
-          }
 
-          const token = await jwt.sign({
-            userId: result.value.id,
-            email: result.value.email,
+            const token = await jwt.sign({
+              userId: result.value.id,
+              email: result.value.email,
+            });
+
+            cookie["session"]!.set({
+              value: token,
+              httpOnly: true,
+              sameSite: "lax",
+              path: "/",
+              maxAge: SESSION_MAX_AGE,
+            });
+
+            return { message: "Logged in" };
           });
-
-          cookie["session"]!.set({
-            value: token,
-            httpOnly: true,
-            sameSite: "lax",
-            path: "/",
-            maxAge: SESSION_MAX_AGE,
-          });
-
-          return { message: "Logged in" };
         },
         {
           body: t.Object({

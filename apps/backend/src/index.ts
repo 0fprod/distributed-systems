@@ -8,6 +8,7 @@ import { startInvoiceFailedConsumer } from "#invoicing/infrastructure/messaging/
 import { startInvoiceInProgressConsumer } from "#invoicing/infrastructure/messaging/invoice-inprogress.consumer";
 import { invoiceRoutes } from "#invoicing/presentation/http/invoice.routes";
 import { wsRoutes } from "#invoicing/presentation/http/ws.routes";
+import { requestIdPlugin } from "#shared/plugins/request-id.plugin";
 import { authRoutes } from "#users/presentation/http/auth.routes";
 import { userRoutes } from "#users/presentation/http/user.routes";
 
@@ -23,15 +24,26 @@ await startInvoiceCompletedConsumer();
 await startInvoiceFailedConsumer();
 
 const app = new Elysia()
-  // HTTP logging hooks — placed before routes so they run for every request.
+  .use(requestIdPlugin)
+
+  // onRequest fires BEFORE derive — requestId is not yet in context here.
+  // Read directly from the header (same logic as the plugin) for logging.
   .onRequest(({ request }) => {
-    logger.info({ method: request.method, url: request.url }, "request");
+    const requestId = request.headers.get("x-request-id") ?? "(pending)";
+    logger.info({ requestId, method: request.method, url: request.url }, "request");
   })
-  .onAfterResponse(({ request, set }) => {
-    logger.info({ method: request.method, url: request.url, status: set.status }, "response");
+  // onAfterResponse fires AFTER derive — requestId is available.
+  .onAfterResponse(({ request, set, requestId }) => {
+    // Return the requestId to the client so it can reference it in bug reports.
+    set.headers["x-request-id"] = requestId;
+    logger.info(
+      { requestId, method: request.method, url: request.url, status: set.status },
+      "response",
+    );
   })
   .onError(({ request, error }) => {
-    logger.error({ method: request.method, url: request.url, err: error }, "error");
+    const requestId = request.headers.get("x-request-id") ?? "(unknown)";
+    logger.error({ requestId, method: request.method, url: request.url, err: error }, "error");
   })
 
   .get(ApiRoutes.HEALTH, () => ({ status: "ok" }))

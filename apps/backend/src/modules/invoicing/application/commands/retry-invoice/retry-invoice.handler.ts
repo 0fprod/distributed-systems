@@ -1,3 +1,4 @@
+import { getRequestId } from "@distributed-systems/logger";
 import { Guid, InvoiceExchanges, InvoiceStatus } from "@distributed-systems/shared";
 
 import type { IMessagePublisher } from "#invoicing/application/ports/message-publisher.port";
@@ -62,9 +63,11 @@ export async function retryInvoiceHandler(
   const updateResult = await deps.repository.update(updated);
   if (!updateResult.ok) return updateResult;
 
+  // Propagate the requestId so the worker can log under the same correlation id.
   await deps.publisher.publish(InvoiceExchanges.CREATED, {
     invoiceId: command.invoiceId,
     userId: command.userId,
+    requestId: getRequestId(),
   });
 
   return ok({ id: command.invoiceId });

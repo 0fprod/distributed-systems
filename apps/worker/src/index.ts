@@ -6,4 +6,4 @@ const logger = createLogger("worker");
 
 await startInvoiceCreatedConsumer();
 
-logger.info("worker started");
+logger.info({}, "worker started");

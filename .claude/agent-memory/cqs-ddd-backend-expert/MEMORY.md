@@ -172,6 +172,17 @@ Backend port 3099 during tests
 - `"declaration": false` in app tsconfig to fix TS2742
 - JWT: `jwt({ name: "jwt", secret, exp: "7d" })` + `.resolve({ as: "scoped" })`
 
+## Correlation IDs (AsyncLocalStorage)
+
+`packages/logger` exports `runWithContext(requestId, fn)` and `getRequestId()`.
+`requestIdPlugin` (`apps/backend/src/shared/plugins/request-id.plugin.ts`) uses `derive({ as: "scoped" })` — every route file `.use(requestIdPlugin)` to get `requestId` in handler context.
+`onRequest` fires BEFORE `derive` — read header directly: `request.headers.get("x-request-id") ?? "(pending)"`.
+`onAfterResponse` / route handlers fire AFTER `derive` — `requestId` available in context.
+Backend route handlers wrap body in `runWithContext(requestId, async () => {...})` so repositories/handlers log with the same id automatically.
+`InvoiceMessagePayload` (`packages/shared`) has optional `requestId?: string` — published by `create-invoice.handler` and `retry-invoice.handler` via `getRequestId()`.
+Worker consumer reads `payload.requestId ?? crypto.randomUUID()` and calls `runWithContext(effectiveRequestId, () => processInvoiceHandler(...))`.
+Logger `createLogger` wrapper: ALL log methods require `(bindings: object, msg: string)` — no single-string overload. Fix: `logger.info({}, "msg")`.
+
 ## Running the System
 
 ```sh
