@@ -69,6 +69,25 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
         },
       )
 
+      // POST /invoices/invalid — no body validation; hardcoded invalid data so the
+      // request passes the HTTP layer but fails worker validation (ensureInvoiceIsValid),
+      // routing the message to the DLQ. Used exclusively for DLQ testing.
+      .post("/invalid", async ({ status, currentUser, requestId }) => {
+        return runWithContext(requestId, async () => {
+          const command = {
+            name: "", // invalid: empty name
+            amount: -1, // invalid: negative amount
+            userId: currentUser.userId,
+          };
+          const result = await createInvoiceHandler(command, { repository, publisher });
+          if (!result.ok) {
+            logger.error({ err: result.error.cause }, result.error.message);
+            return status(500, { message: result.error.message });
+          }
+          return status(201, result.value);
+        });
+      })
+
       // PATCH /invoices/:id
       .patch(
         "/:id",
