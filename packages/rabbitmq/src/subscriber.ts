@@ -1,5 +1,9 @@
+import { createLogger } from "@distributed-systems/logger";
+
 import { getConsumerChannel } from "./connection";
 import { ExchangeNames, QueueNames } from "./constants";
+
+const logger = createLogger("rabbitmq");
 
 export interface SubscribeOptions {
   // prefetch limits how many unacknowledged messages the broker delivers to
@@ -34,24 +38,26 @@ export async function subscribe(
 
   await channel.bindQueue(queue, exchange, "");
 
-  await channel.consume(queue, async (msg) => {
+  // The callback is intentionally non-async. Returning undefined immediately
+  // allows amqplib to deliver the next message without waiting for the handler.
+  // ack/nack are managed asynchronously when the handler promise settles.
+  await channel.consume(queue, (msg) => {
     if (!msg) return;
-    try {
-      const payload = JSON.parse(msg.content.toString()) as unknown;
-      await handler(payload);
-      channel.ack(msg);
-    } catch (err) {
-      console.error(`[rabbitmq] handler error on exchange "${exchange}"`, err);
-      // Reject without requeue to avoid poison-pill loops.
-      channel.nack(msg, false, false);
-    }
+    const payload = JSON.parse(msg.content.toString()) as unknown;
+    handler(payload)
+      .then(() => channel.ack(msg))
+      .catch((err) => {
+        logger.error({ err, exchange }, "fanout handler error");
+        // Reject without requeue to avoid poison-pill loops.
+        channel.nack(msg, false, false);
+      });
   });
 
-  console.log(`[rabbitmq] subscribed to "${exchange}" via queue "${queue}"`);
+  logger.info({ exchange, queue }, "subscribed to fanout exchange");
 }
 
 export interface SubscribeWorkOptions {
-  prefetch?: number; // default: 1
+  prefetch?: number; // default: 10 — allows up to 10 concurrent in-flight messages per channel
 }
 
 // subscribeWork binds a named durable queue to a fanout exchange and sets up
@@ -70,7 +76,7 @@ export async function subscribeWork(
   options: SubscribeWorkOptions = {},
 ): Promise<void> {
   const channel = await getConsumerChannel(exchange);
-  const prefetch = options.prefetch ?? 1;
+  const prefetch = options.prefetch ?? 10;
   await channel.prefetch(prefetch);
 
   // Fanout exchange — same type as publish() uses, so assertExchange is idempotent.
@@ -89,18 +95,21 @@ export async function subscribeWork(
 
   await channel.bindQueue(queueName, exchange, "");
 
-  await channel.consume(queueName, async (msg) => {
+  // The callback is intentionally non-async. Returning undefined immediately
+  // allows amqplib to deliver the next message without waiting for the previous
+  // one to complete. With prefetch=10, up to 10 messages are processed in
+  // parallel — each settles its own ack/nack independently.
+  await channel.consume(queueName, (msg) => {
     if (!msg) return;
-    try {
-      const payload = JSON.parse(msg.content.toString()) as unknown;
-      await handler(payload);
-      channel.ack(msg);
-    } catch (err) {
-      console.error(`[rabbitmq] work handler error on queue "${queueName}"`, err);
-      // nack without requeue — message goes to DLQ instead of being lost or looping.
-      channel.nack(msg, false, false);
-    }
+    const payload = JSON.parse(msg.content.toString()) as unknown;
+    handler(payload)
+      .then(() => channel.ack(msg))
+      .catch((err) => {
+        logger.error({ err, queue: queueName }, "work handler error");
+        // nack without requeue — message goes to DLQ instead of being lost or looping.
+        channel.nack(msg, false, false);
+      });
   });
 
-  console.log(`[rabbitmq] work-queue consumer on "${queueName}" bound to "${exchange}"`);
+  logger.info({ queue: queueName, exchange, prefetch }, "work-queue consumer started");
 }
