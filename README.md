@@ -6,21 +6,29 @@ A monorepo demonstrating distributed systems concepts through an invoice process
 
 ```mermaid
 flowchart TD
-    Browser["🌐 Browser\n(React + TanStack Query)"]
-    Nginx["⚙️ nginx\n(static files + reverse proxy)"]
-    Backend["🖥️ Backend\n(ElysiaJS :3000)"]
-    Worker["⚙️ Worker\n(Bun process)"]
-    RabbitMQ["🐇 RabbitMQ\n(:5672 AMQP · :15672 UI)"]
-    MySQL["🗄️ MySQL\n(:3306)"]
-    Adminer["🔍 Adminer\n(:8081)"]
+    Browser["Browser\n(React + TanStack Query)"]
+    Nginx["nginx\n(static files + reverse proxy)"]
+    Backend["Backend\n(ElysiaJS :3000)"]
+    Worker["Worker\n(Bun process)"]
+    RabbitMQ["RabbitMQ\n(:5672 AMQP · :15672 UI)"]
+    MySQL["MySQL\n(:3306)"]
+    Adminer["Adminer\n(:8081)"]
 
     Browser -- "HTTP :8080" --> Nginx
     Browser -- "WS :8080/ws" --> Nginx
-    Nginx -- "proxy /invoices\nproxy /ws" --> Backend
+    Nginx -- "proxy /api/*\nproxy /ws" --> Backend
+
+    subgraph BackendRoutes["Backend HTTP API"]
+        direction TB
+        PublicRoutes["Public\nPOST /register\nPOST /login\nPOST /logout\nGET  /health"]
+        ProtectedRoutes["Protected (JWT cookie)\nGET  /me\nGET  /invoices\nPOST /invoices\nPATCH /invoices/:id\nDELETE /invoices/:id\nPOST /invoices/invalid"]
+    end
+
+    Backend --- BackendRoutes
 
     Backend -- "POST → invoices.created" --> RabbitMQ
     Backend -- "SUB ← invoices.inprogress\n     ← invoices.completed\n     ← invoices.failed" --> RabbitMQ
-    Backend -- "WS broadcast" --> Browser
+    Backend -- "WS push (per-user)" --> Browser
 
     Worker -- "SUB ← invoices.created\n(durable queue)" --> RabbitMQ
     Worker -- "PUB → invoices.inprogress\n     → invoices.completed\n     → invoices.failed" --> RabbitMQ
@@ -68,15 +76,17 @@ Failed messages (handler throws) are routed to the DLQ via `x-dead-letter-exchan
 | Worker          | Bun (pure RabbitMQ consumer)                |
 | Messaging       | RabbitMQ 3 (AMQP)                           |
 | Database        | MySQL 8, Prisma ORM                         |
+| Logging         | Pino, pino-pretty                           |
 | Package manager | Bun 1.3.6 workspaces                        |
 
 ### Workspace packages
 
-| Package             | Description                                                          |
-| ------------------- | -------------------------------------------------------------------- |
-| `packages/shared`   | Domain types, constants, `InvoiceStatus`, `InvoiceExchanges`         |
-| `packages/database` | Prisma schema, generated client, migrations                          |
-| `packages/rabbitmq` | `publish()`, `subscribe()`, `subscribeWork()`, connection management |
+| Package             | Description                                                                                              |
+| ------------------- | -------------------------------------------------------------------------------------------------------- |
+| `packages/shared`   | Domain types, constants, `InvoiceStatus`, `InvoiceExchanges`                                             |
+| `packages/database` | Prisma schema, generated client, migrations                                                              |
+| `packages/rabbitmq` | `publish()`, `subscribe()`, `subscribeWork()`, connection management                                     |
+| `packages/logger`   | Pino-based logger — `createLogger()`, request-ID propagation via `AsyncLocalStorage`, pino-pretty in dev |
 
 ---
 
@@ -183,12 +193,22 @@ docker compose down -v                 # Stop + remove volumes (fresh DB)
 distributed-systems/
 ├── apps/
 │   ├── backend/          # ElysiaJS REST API + WebSocket server
-│   │   └── src/modules/invoicing/
-│   │       ├── application/commands/   # create-invoice, retry-invoice, delete-invoice
-│   │       ├── application/queries/    # list-invoices
-│   │       ├── domain/                 # repository interface, errors
-│   │       ├── infrastructure/         # Prisma repo, RabbitMQ consumers
-│   │       └── presentation/http/      # Elysia routes, WS handler
+│   │   └── src/
+│   │       ├── modules/
+│   │       │   ├── invoicing/
+│   │       │   │   ├── application/commands/   # create-invoice, retry-invoice, delete-invoice
+│   │       │   │   ├── application/queries/    # list-invoices
+│   │       │   │   ├── domain/                 # repository interface, errors
+│   │       │   │   ├── infrastructure/         # Prisma repo, RabbitMQ consumers
+│   │       │   │   └── presentation/http/      # Elysia routes, WS handler
+│   │       │   └── users/
+│   │       │       ├── application/commands/   # register-user, login-user
+│   │       │       ├── domain/                 # user entity, value objects, errors
+│   │       │       ├── infrastructure/         # Prisma user repository
+│   │       │       └── presentation/http/      # auth.routes, user.routes
+│   │       └── shared/
+│   │           ├── plugins/                    # auth (JWT cookie guard), request-id
+│   │           └── routes/                     # health check
 │   ├── worker/           # Background invoice processor
 │   │   └── src/modules/invoicing/
 │   │       ├── application/commands/   # process-invoice handler
@@ -198,8 +218,9 @@ distributed-systems/
 │           ├── generate-invoice-form/
 │           └── invoice-list/
 ├── packages/
-│   ├── shared/           # Domain types shared across all apps
+│   ├── shared/           # Domain types, ApiRoutes, InvoiceStatus, DTOs
 │   ├── database/         # Prisma schema + client
-│   └── rabbitmq/         # AMQP connection, publish, subscribe, subscribeWork
+│   ├── rabbitmq/         # AMQP connection, publish, subscribe, subscribeWork
+│   └── logger/           # Pino logger factory, pino-pretty in dev, request-ID via AsyncLocalStorage
 └── docker-compose.yml
 ```

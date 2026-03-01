@@ -1,6 +1,6 @@
 # Monorepo Manager — Project Memory
 
-Last updated: 2026-02-26
+Last updated: 2026-03-01
 
 Root: `/Users/fran/Workspace/distributed-systems`
 
@@ -273,3 +273,51 @@ Backend and worker have `restart: on-failure`. If MySQL isn't running, they loop
 7. **`PRISMA_GENERATE_SKIP_AUTOINSTALL=true`** — required in Docker (oven/bun image has no npm).
 
 8. **`bun run --filter` does not forward stdin** — use `--cwd` for interactive commands like `prisma migrate dev`.
+
+---
+
+## Backend HTTP API
+
+Full endpoint reference: see [`backend-api.md`](.claude/agent-memory/monorepo-manager/backend-api.md)
+
+### Quick reference — all routes
+
+| Method | Path                | Auth       | Module    | Description                                |
+| ------ | ------------------- | ---------- | --------- | ------------------------------------------ |
+| GET    | `/health`           | public     | shared    | DB + RabbitMQ liveness check               |
+| POST   | `/register`         | public     | users     | Create user; returns `{ id }`              |
+| POST   | `/login`            | public     | users     | Verify credentials, set `session` cookie   |
+| POST   | `/logout`           | public     | users     | Remove `session` cookie                    |
+| GET    | `/me`               | JWT cookie | users     | Returns `{ id, email }` from JWT context   |
+| GET    | `/invoices`         | JWT cookie | invoicing | List invoices owned by current user        |
+| POST   | `/invoices`         | JWT cookie | invoicing | Create invoice; publishes to RabbitMQ      |
+| POST   | `/invoices/invalid` | JWT cookie | invoicing | DLQ test: submit intentionally bad invoice |
+| PATCH  | `/invoices/:id`     | JWT cookie | invoicing | Edit + retry a FAILED invoice              |
+| DELETE | `/invoices/:id`     | JWT cookie | invoicing | Delete invoice (any status)                |
+| WS     | `/ws`               | JWT cookie | invoicing | Per-user real-time push channel            |
+
+### Auth mechanism
+
+- Cookie name: `session` (HttpOnly, SameSite=lax, path=/, 7-day maxAge)
+- JWT payload: `{ userId: string (UUID), email: string }`, exp 7d
+- Guard: `authPlugin` in `apps/backend/src/shared/plugins/auth.plugin.ts`
+- `GET /me` does NOT hit the database — reads `currentUser` injected from JWT by `authPlugin`
+
+### Backend module layout
+
+```
+apps/backend/src/
+  modules/
+    invoicing/   # commands + queries + Prisma repo + 3 RabbitMQ consumers + REST + WS routes
+    users/       # commands (register, login) + Prisma repo + auth + user routes
+  shared/
+    plugins/     # authPlugin, requestIdPlugin
+    routes/      # healthRoutes
+```
+
+### users vs invoicing module differences
+
+- `users` has no RabbitMQ involvement; `invoicing` has 3 consumers (inprogress, completed, failed)
+- `users` split across two route files: `auth.routes.ts` (public login/logout) and `user.routes.ts` (public register + protected /me)
+- `users` domain has a `password.vo.ts` value object for hashing + strength checks
+- `invoicing` uses a mapper (`toInvoiceDTO`) for response serialisation; `users` has `toUserDTO` but it is not currently used in routes (routes return inline objects)
