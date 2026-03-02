@@ -77,7 +77,13 @@ async function startBackend(
 ): Promise<{ url: string; process: ReturnType<typeof Bun.spawn> }> {
   const proc = Bun.spawn(["bun", "run", "src/index.ts"], {
     cwd: BACKEND,
-    env: { ...process.env, DATABASE_URL: databaseUrl, RABBITMQ_URL: rabbitmqUrl, PORT: port },
+    env: {
+      ...process.env,
+      DATABASE_URL: databaseUrl,
+      RABBITMQ_URL: rabbitmqUrl,
+      PORT: port,
+      OTEL_SDK_DISABLED: "true",
+    },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -99,9 +105,12 @@ async function startBackend(
 }
 
 function startWorker(databaseUrl: string, rabbitmqUrl: string): ReturnType<typeof Bun.spawn> {
-  const proc = Bun.spawn(["bun", "run", "src/index.ts"], {
-    cwd: WORKER,
-    env: { ...process.env, DATABASE_URL: databaseUrl, RABBITMQ_URL: rabbitmqUrl },
+    env: {
+      ...process.env,
+      DATABASE_URL: databaseUrl,
+      RABBITMQ_URL: rabbitmqUrl,
+      OTEL_SDK_DISABLED: "true",
+    },
     stdout: "pipe",
     stderr: "pipe",
   });

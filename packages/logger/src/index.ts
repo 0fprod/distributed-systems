@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "async_hooks";
+import { isSpanContextValid, trace } from "@opentelemetry/api";
 import pino from "pino";
 
 // Storage that propagates requestId throughout the entire async chain without
@@ -47,12 +48,19 @@ export function createLogger(module: string) {
   };
   const base = pino(options).child({ module });
 
-  // Enriches every log call with requestId from AsyncLocalStorage when a context
-  // is active. If no context is set (startup logs, unit tests) the bindings are
-  // returned unchanged — no requestId field is added.
+  // Enriches every log call with requestId from AsyncLocalStorage and traceId +
+  // spanId from the active OTel span when a context is active.
+  // If no context is set (startup logs, unit tests) the bindings are returned
+  // unchanged — no extra fields are added.
   function withContext(bindings: object): object {
     const requestId = getRequestId();
-    return requestId ? { requestId, ...bindings } : bindings;
+    const spanCtx = trace.getActiveSpan()?.spanContext();
+    const traceFields =
+      spanCtx && isSpanContextValid(spanCtx)
+        ? { traceId: spanCtx.traceId, spanId: spanCtx.spanId }
+        : {};
+    const contextFields = requestId ? { requestId, ...traceFields } : traceFields;
+    return { ...contextFields, ...bindings };
   }
 
   return {

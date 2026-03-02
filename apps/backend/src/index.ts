@@ -1,4 +1,5 @@
 import { Elysia } from "elysia";
+import { opentelemetry } from "@elysiajs/opentelemetry";
 
 import { createLogger } from "@distributed-systems/logger";
 
@@ -24,6 +25,10 @@ await startInvoiceCompletedConsumer();
 await startInvoiceFailedConsumer();
 
 const app = new Elysia()
+  // OpenTelemetry plugin — all configuration is read from env vars:
+  //   OTEL_SERVICE_NAME, OTEL_TRACES_EXPORTER, OTEL_EXPORTER_OTLP_ENDPOINT
+  // No package imports needed here: NodeSDK auto-detects the OTLP exporter.
+  .use(opentelemetry({ serviceName: process.env.OTEL_SERVICE_NAME ?? "backend" }))
   .use(requestIdPlugin)
 
   // onRequest fires BEFORE derive — requestId is not yet in context here.

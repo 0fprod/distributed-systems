@@ -4,6 +4,8 @@ import { createLogger, runWithContext } from "@distributed-systems/logger";
 import { publish } from "@distributed-systems/rabbitmq";
 import { ApiRoutes } from "@distributed-systems/shared";
 
+import { markSpanError } from "#shared/utils/span";
+
 import { createInvoiceHandler } from "#invoicing/application/commands/create-invoice/create-invoice.handler";
 import { deleteInvoiceHandler } from "#invoicing/application/commands/delete-invoice/delete-invoice.handler";
 import { retryInvoiceHandler } from "#invoicing/application/commands/retry-invoice/retry-invoice.handler";
@@ -35,6 +37,7 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
           const result = await listInvoicesHandler(repository, currentUser.userId);
           if (!result.ok) {
             logger.error({ err: result.error.cause }, result.error.message);
+            markSpanError(result.error.cause, result.error.message);
             return status(500, { message: result.error.message });
           }
           return result.value.map(toInvoiceDTO);
@@ -56,6 +59,7 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
             const result = await createInvoiceHandler(createInvoiceCommand, deps);
             if (!result.ok) {
               logger.error({ err: result.error.cause }, result.error.message);
+              markSpanError(result.error.cause, result.error.message);
               return status(500, { message: result.error.message });
             }
             return status(201, result.value);
@@ -82,6 +86,7 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
           const result = await createInvoiceHandler(command, { repository, publisher });
           if (!result.ok) {
             logger.error({ err: result.error.cause }, result.error.message);
+            markSpanError(result.error.cause, result.error.message);
             return status(500, { message: result.error.message });
           }
           return status(201, result.value);
@@ -112,6 +117,7 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
                   return status(400, { message: error.message });
                 case "persistence_error":
                   logger.error({ err: error.cause }, error.message);
+                  markSpanError(error.cause, error.message);
                   return status(500, { message: error.message });
               }
             }
@@ -139,8 +145,11 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
             switch (error.type) {
               case "not_found":
                 return status(404, { message: error.message });
+              case "forbidden":
+                return status(403, { message: error.message });
               case "persistence_error":
                 logger.error({ err: error.cause }, error.message);
+                markSpanError(error.cause, error.message);
                 return status(500, { message: error.message });
             }
           }

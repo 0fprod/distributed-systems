@@ -4,6 +4,7 @@ import { Elysia, t } from "elysia";
 import { createLogger, runWithContext } from "@distributed-systems/logger";
 import { ApiRoutes } from "@distributed-systems/shared";
 
+import { markSpanError } from "#shared/utils/span";
 import { requestIdPlugin } from "#shared/plugins/request-id.plugin";
 import { loginUserHandler } from "#users/application/commands/login-user/login-user.handler";
 import { prismaUserRepository } from "#users/infrastructure/repositories/prisma-user.repository";
@@ -43,6 +44,7 @@ export function authRoutes({ jwtSecret }: AuthRoutesOptions) {
                   return status(401, { message: error.message });
                 case "persistence_error":
                   logger.error({ err: error.cause }, error.message);
+                  markSpanError(error.cause, error.message);
                   return status(500, { message: error.message });
               }
             }

@@ -3,6 +3,7 @@ import { Elysia, t } from "elysia";
 import { createLogger, runWithContext } from "@distributed-systems/logger";
 import { ApiRoutes } from "@distributed-systems/shared";
 
+import { markSpanError } from "#shared/utils/span";
 import { authPlugin } from "#shared/plugins/auth.plugin";
 import { requestIdPlugin } from "#shared/plugins/request-id.plugin";
 import { registerUserHandler } from "#users/application/commands/register-user/register-user.handler";
@@ -36,6 +37,7 @@ export function userRoutes({ jwtSecret }: UserRoutesOptions) {
                   return status(400, { message: error.message });
                 case "persistence_error":
                   logger.error({ err: error.cause }, error.message);
+                  markSpanError(error.cause, error.message);
                   return status(500, { message: error.message });
               }
             }

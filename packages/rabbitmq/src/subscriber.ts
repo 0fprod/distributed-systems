@@ -1,9 +1,18 @@
+import {
+  SpanKind,
+  SpanStatusCode,
+  context,
+  propagation,
+  trace,
+} from "@opentelemetry/api";
+
 import { createLogger } from "@distributed-systems/logger";
 
 import { getConsumerChannel } from "./connection";
 import { ExchangeNames, QueueNames } from "./constants";
 
 const logger = createLogger("rabbitmq");
+const tracer = trace.getTracer("rabbitmq");
 
 export interface SubscribeOptions {
   // prefetch limits how many unacknowledged messages the broker delivers to
@@ -47,13 +56,22 @@ export async function subscribe(
   await channel.consume(queue, (msg) => {
     if (!msg) return;
     const payload = JSON.parse(msg.content.toString()) as unknown;
-    handler(payload)
-      .then(() => channel.ack(msg))
-      .catch((err) => {
-        logger.error({ err, exchange }, "fanout handler error");
-        // Reject without requeue to avoid poison-pill loops.
-        channel.nack(msg, false, false);
-      });
+
+    // Extract the W3C trace context from message headers so that any logger
+    // calls inside the handler include the correct traceId. No span is created
+    // here — these are fire-and-forget WS broadcast consumers.
+    const headers = (msg.properties.headers ?? {}) as Record<string, string>;
+    const parentCtx = propagation.extract(context.active(), headers);
+
+    context.with(parentCtx, () => {
+      handler(payload)
+        .then(() => channel.ack(msg))
+        .catch((err) => {
+          logger.error({ err, exchange }, "fanout handler error");
+          // Reject without requeue to avoid poison-pill loops.
+          channel.nack(msg, false, false);
+        });
+    });
   });
 
   logger.info({ exchange, queue }, "subscribed to fanout exchange");
@@ -105,13 +123,40 @@ export async function subscribeWork(
   await channel.consume(queueName, (msg) => {
     if (!msg) return;
     const payload = JSON.parse(msg.content.toString()) as unknown;
-    handler(payload)
-      .then(() => channel.ack(msg))
-      .catch((err) => {
-        logger.error({ err, queue: queueName }, "work handler error");
-        // nack without requeue — message goes to DLQ instead of being lost or looping.
-        channel.nack(msg, false, false);
-      });
+
+    // Extract the W3C trace context (traceparent / tracestate) injected by the
+    // publisher and create a CONSUMER span that is a child of the backend span.
+    // This provides the cross-service link visible in Jaeger.
+    const headers = (msg.properties.headers ?? {}) as Record<string, string>;
+    const parentCtx = propagation.extract(context.active(), headers);
+    const span = tracer.startSpan(
+      `${exchange} process`,
+      {
+        kind: SpanKind.CONSUMER,
+        attributes: {
+          "messaging.system": "rabbitmq",
+          "messaging.destination": queueName,
+          "messaging.operation": "process",
+        },
+      },
+      parentCtx,
+    );
+
+    context.with(trace.setSpan(parentCtx, span), () => {
+      handler(payload)
+        .then(() => {
+          span.end();
+          channel.ack(msg);
+        })
+        .catch((err) => {
+          span.recordException(err as Error);
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          span.end();
+          logger.error({ err, queue: queueName }, "work handler error");
+          // nack without requeue — message goes to DLQ instead of being lost or looping.
+          channel.nack(msg, false, false);
+        });
+    });
   });
 
   logger.info({ queue: queueName, exchange, prefetch }, "work-queue consumer started");

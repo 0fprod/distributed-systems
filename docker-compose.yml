@@ -20,6 +20,8 @@ services:
       MYSQL_DATABASE: invoices
     ports:
       - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
       interval: 10s
@@ -40,6 +42,9 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       DATABASE_URL: mysql://root:root@mysql:3306/invoices
       PRISMA_GENERATE_SKIP_AUTOINSTALL: "true"
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: backend
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -62,6 +67,8 @@ services:
     environment:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       DATABASE_URL: mysql://root:root@mysql:3306/invoices
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: worker
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -74,8 +81,8 @@ services:
     # queue — RabbitMQ round-robins between them with prefetch=1 per instance,
     # so N invoices process in parallel without any code changes.
     # Tune replicas to match expected throughput during load testing.
-    deploy:
-      replicas: 3
+    # deploy:
+    #   replicas: 3
 
   adminer:
     image: adminer
@@ -96,6 +103,17 @@ services:
     networks:
       - app-network
 
+  jaeger:
+    image: jaegertracing/jaeger:2.4.0
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4318:4318"     # OTLP HTTP receiver (backend + worker export here)
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  mysql_data:
