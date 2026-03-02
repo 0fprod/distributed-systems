@@ -1,6 +1,6 @@
 # Monorepo Manager — Project Memory
 
-Last updated: 2026-03-01
+Last updated: 2026-03-01 (OTel integration)
 
 Root: `/Users/fran/Workspace/distributed-systems`
 
@@ -30,7 +30,9 @@ distributed-systems/
 │   └── frontend/         # @distributed-systems/frontend — React + Vite + Tailwind
 ├── packages/
 │   ├── database/         # @distributed-systems/database — Prisma client + mappers
-│   ├── rabbitmq/         # @distributed-systems/rabbitmq — amqplib wrappers
+│   ├── logger/           # @distributed-systems/logger   — structured logger + OTel trace context
+│   ├── otel/             # @distributed-systems/otel     — OTel SDK init for non-HTTP services
+│   ├── rabbitmq/         # @distributed-systems/rabbitmq — amqplib wrappers + OTel propagation
 │   └── shared/           # @distributed-systems/shared   — domain types, enums, routes
 └── tests/
     └── integration/      # @distributed-systems/integration-tests — testcontainers suites
@@ -50,12 +52,15 @@ Root `package.json` workspaces field:
 
 ```
 @distributed-systems/shared       (no workspace deps)
-@distributed-systems/rabbitmq     (no workspace deps)
+@distributed-systems/otel         (no workspace deps)
+@distributed-systems/logger       (no workspace deps — uses @opentelemetry/api directly)
+@distributed-systems/rabbitmq     (no workspace deps — uses @opentelemetry/api directly)
 @distributed-systems/database  -> @distributed-systems/shared
 @distributed-systems/backend   -> @distributed-systems/database
                                -> @distributed-systems/rabbitmq
                                -> @distributed-systems/shared
 @distributed-systems/worker    -> @distributed-systems/database
+                               -> @distributed-systems/otel
                                -> @distributed-systems/rabbitmq
                                -> @distributed-systems/shared
 @distributed-systems/frontend  -> @distributed-systems/shared
@@ -170,11 +175,12 @@ Bun auto-loads the root `.env`. Must always be MySQL format — if it were SQLit
 
 ### Per-Package .env Files
 
-| File                     | Contents                                                   |
-| ------------------------ | ---------------------------------------------------------- |
-| `packages/database/.env` | `DATABASE_URL="mysql://root:root@localhost:3306/invoices"` |
-| `apps/backend/.env`      | `PORT=3000`                                                |
-| `packages/rabbitmq/.env` | `RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672`            |
+| File                     | Contents                                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------------------- |
+| `packages/database/.env` | `DATABASE_URL="mysql://root:root@localhost:3306/invoices"`                                    |
+| `apps/backend/.env`      | `PORT=3000`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`, `OTEL_SERVICE_NAME=backend` |
+| `apps/worker/.env`       | `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`, `OTEL_SERVICE_NAME=worker`               |
+| `packages/rabbitmq/.env` | `RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672`                                               |
 
 ---
 
@@ -250,9 +256,33 @@ bun test --preload ./preload.ts ./tests
 
 ## Docker Compose
 
-Services: `rabbitmq`, `mysql`, `backend` (port 3000), `worker`, `adminer` (port 8081), `frontend` (port 8080).
+Services: `rabbitmq`, `mysql`, `backend` (port 3000), `worker`, `adminer` (port 8081), `frontend` (port 8080), `jaeger` (UI 16686, OTLP HTTP 4318).
 
 Backend and worker have `restart: on-failure`. If MySQL isn't running, they loop-restart — visible in Docker Desktop. Run `docker compose down` to stop cleanly.
+
+---
+
+## OpenTelemetry
+
+Full details: [`otel.md`](.claude/agent-memory/monorepo-manager/otel.md)
+
+### Architecture
+
+- **backend** — uses `@elysiajs/opentelemetry` (auto-instruments HTTP spans); no `@distributed-systems/otel`.
+- **worker** — calls `initWorkerOtel()` from `@distributed-systems/otel` at the very top of `src/index.ts`, before any other imports.
+- **packages/rabbitmq** — injects/extracts W3C `traceparent` header via `@opentelemetry/api` propagation API (no-op when SDK not initialised).
+- **packages/logger** — reads `traceId`/`spanId` from the active span via `@opentelemetry/api` and appends them to every log line (no-op when SDK not initialised).
+
+### packages/otel (`@distributed-systems/otel`)
+
+Exports `initWorkerOtel()`: creates `NodeTracerProvider` + `BatchSpanProcessor` + `OTLPTraceExporter`.
+
+- `OTEL_SERVICE_NAME` — service name (required env var).
+- `OTEL_EXPORTER_OTLP_ENDPOINT` — base URL; `/v1/traces` is appended automatically.
+
+### CRITICAL: OTel version compatibility
+
+`@elysiajs/opentelemetry@1.4.x` requires OTel SDK **2.x**. Mixing 1.x/0.57.x causes TypeScript type conflicts (`Resource`/`Span` type mismatch). Always use: `sdk-trace-node@^2.0.0`, `sdk-trace-base@^2.0.0`, `exporter-trace-otlp-proto@^0.200.0`, `api@^1.9.0`.
 
 ---
 
@@ -278,46 +308,11 @@ Backend and worker have `restart: on-failure`. If MySQL isn't running, they loop
 
 ## Backend HTTP API
 
-Full endpoint reference: see [`backend-api.md`](.claude/agent-memory/monorepo-manager/backend-api.md)
+Full endpoint reference (routes, auth, module layout): see [`backend-api.md`](.claude/agent-memory/monorepo-manager/backend-api.md)
 
-### Quick reference — all routes
+Key facts:
 
-| Method | Path                | Auth       | Module    | Description                                |
-| ------ | ------------------- | ---------- | --------- | ------------------------------------------ |
-| GET    | `/health`           | public     | shared    | DB + RabbitMQ liveness check               |
-| POST   | `/register`         | public     | users     | Create user; returns `{ id }`              |
-| POST   | `/login`            | public     | users     | Verify credentials, set `session` cookie   |
-| POST   | `/logout`           | public     | users     | Remove `session` cookie                    |
-| GET    | `/me`               | JWT cookie | users     | Returns `{ id, email }` from JWT context   |
-| GET    | `/invoices`         | JWT cookie | invoicing | List invoices owned by current user        |
-| POST   | `/invoices`         | JWT cookie | invoicing | Create invoice; publishes to RabbitMQ      |
-| POST   | `/invoices/invalid` | JWT cookie | invoicing | DLQ test: submit intentionally bad invoice |
-| PATCH  | `/invoices/:id`     | JWT cookie | invoicing | Edit + retry a FAILED invoice              |
-| DELETE | `/invoices/:id`     | JWT cookie | invoicing | Delete invoice (any status)                |
-| WS     | `/ws`               | JWT cookie | invoicing | Per-user real-time push channel            |
-
-### Auth mechanism
-
-- Cookie name: `session` (HttpOnly, SameSite=lax, path=/, 7-day maxAge)
-- JWT payload: `{ userId: string (UUID), email: string }`, exp 7d
-- Guard: `authPlugin` in `apps/backend/src/shared/plugins/auth.plugin.ts`
-- `GET /me` does NOT hit the database — reads `currentUser` injected from JWT by `authPlugin`
-
-### Backend module layout
-
-```
-apps/backend/src/
-  modules/
-    invoicing/   # commands + queries + Prisma repo + 3 RabbitMQ consumers + REST + WS routes
-    users/       # commands (register, login) + Prisma repo + auth + user routes
-  shared/
-    plugins/     # authPlugin, requestIdPlugin
-    routes/      # healthRoutes
-```
-
-### users vs invoicing module differences
-
-- `users` has no RabbitMQ involvement; `invoicing` has 3 consumers (inprogress, completed, failed)
-- `users` split across two route files: `auth.routes.ts` (public login/logout) and `user.routes.ts` (public register + protected /me)
-- `users` domain has a `password.vo.ts` value object for hashing + strength checks
-- `invoicing` uses a mapper (`toInvoiceDTO`) for response serialisation; `users` has `toUserDTO` but it is not currently used in routes (routes return inline objects)
+- Auth cookie: `session` (HttpOnly, SameSite=lax, 7d). JWT payload: `{ userId, email }`.
+- `GET /me` reads JWT context only — no DB hit.
+- `invoicing` module: 3 RabbitMQ consumers (inprogress, completed, failed) + REST + WS (`/ws`).
+- `users` module: no RabbitMQ. Two route files: `auth.routes.ts` + `user.routes.ts`.

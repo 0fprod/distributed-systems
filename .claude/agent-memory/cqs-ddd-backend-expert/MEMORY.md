@@ -183,6 +183,16 @@ Backend route handlers wrap body in `runWithContext(requestId, async () => {...}
 Worker consumer reads `payload.requestId ?? crypto.randomUUID()` and calls `runWithContext(effectiveRequestId, () => processInvoiceHandler(...))`.
 Logger `createLogger` wrapper: ALL log methods require `(bindings: object, msg: string)` — no single-string overload. Fix: `logger.info({}, "msg")`.
 
+## OTel Span Marking (Result Pattern + HTTP)
+
+Helper: `apps/backend/src/shared/utils/span.ts` → `markSpanError(err: unknown, message?: string): void`
+Import: `import { markSpanError } from "#shared/utils/span";`
+Dep: `"@opentelemetry/api": "^1.9.0"` is a **direct** dep in `apps/backend/package.json`.
+
+Rule: call `markSpanError(error.cause, error.message)` immediately after `logger.error(...)` **only** for `persistence_error` (5xx). Never for 4xx outcomes — those are expected domain paths.
+Worker is exempt: it throws in guard clauses; `packages/rabbitmq/src/subscriber.ts` handles `span.recordException` + `setStatus(ERROR)` in its catch.
+exactOptionalPropertyTypes note: `setStatus({ code: ERROR, message })` fails when message is `undefined`. Pattern: `message !== undefined ? { code, message } : { code }`.
+
 ## Running the System
 
 ```sh
