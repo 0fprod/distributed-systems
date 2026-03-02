@@ -43,7 +43,7 @@ services:
       DATABASE_URL: mysql://root:root@mysql:3306/invoices
       PRISMA_GENERATE_SKIP_AUTOINSTALL: "true"
       OTEL_TRACES_EXPORTER: otlp
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
       OTEL_SERVICE_NAME: backend
     depends_on:
       rabbitmq:
@@ -67,7 +67,7 @@ services:
     environment:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       DATABASE_URL: mysql://root:root@mysql:3306/invoices
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
       OTEL_SERVICE_NAME: worker
     depends_on:
       rabbitmq:
@@ -103,13 +103,56 @@ services:
     networks:
       - app-network
 
-  jaeger:
-    image: jaegertracing/jaeger:2.4.0
+  tempo:
+    image: grafana/tempo:2.5.0
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo/tempo.yaml
+      - tempo_data:/var/tempo
     ports:
-      - "16686:16686"   # Jaeger UI
-      - "4318:4318"     # OTLP HTTP receiver (backend + worker export here)
+      - "4318:4318" # OTLP HTTP — same port as Jaeger was, .env files unchanged
+      - "3200:3200" # Tempo HTTP API (queried by Grafana)
     networks:
       - app-network
+
+  loki:
+    image: grafana/loki:2.9.0
+    user: "0" # root — needed to write into the Docker-managed volume
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./loki.yaml:/etc/loki/loki.yaml
+      - loki_data:/var/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - app-network
+
+  alloy:
+    image: grafana/alloy:latest
+    command: ["run", "/etc/alloy/config.alloy"]
+    volumes:
+      - ./alloy.config:/etc/alloy/config.alloy
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - app-network
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000" # :3000 is taken by backend
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin # no login needed locally
+    networks:
+      - app-network
+    depends_on:
+      - tempo
+      - loki
 
 networks:
   app-network:
@@ -117,3 +160,6 @@ networks:
 
 volumes:
   mysql_data:
+  tempo_data:
+  loki_data:
+  grafana_data:
