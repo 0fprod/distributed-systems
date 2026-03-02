@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-nginx-config
+  namespace: distributed-systems
+data:
+  nginx.conf: |
+    server {
+        listen 80;
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # K8s DNS resolves "backend" to the ClusterIP of the backend Service.
+        # No Docker-specific resolver or dynamic variable needed.
+
+        location /invoices {
+            proxy_pass http://backend:3000;
+        }
+
+        location /register {
+            proxy_pass http://backend:3000;
+        }
+
+        location /login {
+            proxy_pass http://backend:3000;
+        }
+
+        location /logout {
+            proxy_pass http://backend:3000;
+        }
+
+        location /me {
+            proxy_pass http://backend:3000;
+        }
+
+        location /ws {
+            proxy_pass http://backend:3000;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_read_timeout 3600s;
+        }
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        location = /index.html {
+            add_header Cache-Control "no-cache, no-store, must-revalidate";
+        }
+    }

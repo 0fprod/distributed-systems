@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: distributed-systems
+data:
+  OTEL_TRACES_EXPORTER: "otlp"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://host.docker.internal:4318"
+  PRISMA_GENERATE_SKIP_AUTOINSTALL: "true"
