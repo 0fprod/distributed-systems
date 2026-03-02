@@ -1,3 +1,4 @@
+import { htmlReport } from "https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.js";
 import { check, sleep } from "k6";
 import http from "k6/http";
 
@@ -52,4 +53,10 @@ export default function (data) {
   });
 
   sleep(0.1);
+}
+
+export function handleSummary(data) {
+  return {
+    "k8s/stress-test-summary.html": htmlReport(data),
+  };
 }
