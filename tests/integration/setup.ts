@@ -11,7 +11,7 @@ import { ApiRoutes } from "@distributed-systems/shared";
 const ROOT = path.resolve(import.meta.dir, "../..");
 const SCHEMA = path.join(ROOT, "packages/database/prisma/schema.prisma");
 const BACKEND = path.join(ROOT, "apps/backend");
-const WORKER = path.join(ROOT, "apps/worker");
+const WORKER_DOUBLE = path.join(import.meta.dir, "worker-double.ts");
 
 // ── Base env (non-sensitive defaults: ports, local URLs) ──────────────────────
 // Each .env only sets what belongs to that package.
@@ -105,6 +105,7 @@ async function startBackend(
 }
 
 function startWorker(databaseUrl: string, rabbitmqUrl: string): ReturnType<typeof Bun.spawn> {
+  const proc = Bun.spawn(["bun", "run", WORKER_DOUBLE], {
     env: {
       ...process.env,
       DATABASE_URL: databaseUrl,

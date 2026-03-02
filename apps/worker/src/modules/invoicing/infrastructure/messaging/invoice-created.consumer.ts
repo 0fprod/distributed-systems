@@ -1,6 +1,10 @@
 import { createLogger, runWithContext } from "@distributed-systems/logger";
 import { QueueNames, subscribeWork } from "@distributed-systems/rabbitmq";
-import { InvoiceExchanges, type InvoiceMessagePayload } from "@distributed-systems/shared";
+import {
+  InvoiceExchanges,
+  type InvoiceMessagePayload,
+  processFakeInvoice,
+} from "@distributed-systems/shared";
 
 import { processInvoiceHandler } from "#invoicing/application/commands/process-invoice/process-invoice.handler";
 import { prismaInvoiceRepository } from "#invoicing/infrastructure/repositories/prisma-invoice.repository";
@@ -55,6 +59,7 @@ export async function startInvoiceCreatedConsumer(): Promise<void> {
         publisher: invoicePublisher,
         invoiceRepository: prismaInvoiceRepository,
         userRepository: prismaUserRepository,
+        processInvoice: processFakeInvoice,
       };
 
       // Wrap the entire handler execution in a context so every log call made

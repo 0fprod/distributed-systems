@@ -1,5 +1,5 @@
 import { createLogger } from "@distributed-systems/logger";
-import { InvoiceExchanges, InvoiceStatus, processFakeInvoice } from "@distributed-systems/shared";
+import { InvoiceExchanges, InvoiceStatus } from "@distributed-systems/shared";
 
 import type { InvoiceWorkerPersistenceError } from "#invoicing/domain/errors/invoice.errors";
 import type { UserWorkerPersistenceError } from "#invoicing/domain/errors/user.errors";
@@ -18,6 +18,7 @@ type Dependencies = {
   publisher: IMessagePublisher;
   invoiceRepository: IInvoiceRepository;
   userRepository: IUserRepository;
+  processInvoice: (invoiceId: string) => Promise<void>;
 };
 
 // Handler orchestrates the invoice processing use case:
@@ -44,7 +45,7 @@ export async function processInvoiceHandler(
   await deps.invoiceRepository.update({ ...invoice, status: InvoiceStatus.INPROGRESS });
   await deps.publisher.publish(InvoiceExchanges.INPROGRESS, { invoiceId, userId: user.id });
 
-  await processFakeInvoice(invoiceId); // accepts string UUID
+  await deps.processInvoice(invoiceId);
 
   await deps.invoiceRepository.update({ ...invoice, status: InvoiceStatus.COMPLETED });
   await deps.publisher.publish(InvoiceExchanges.COMPLETED, { invoiceId, userId: user.id });

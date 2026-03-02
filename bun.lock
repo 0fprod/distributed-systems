@@ -128,6 +128,8 @@
       "version": "1.0.0",
       "dependencies": {
         "@distributed-systems/database": "workspace:*",
+        "@distributed-systems/logger": "workspace:*",
+        "@distributed-systems/rabbitmq": "workspace:*",
         "@distributed-systems/shared": "workspace:*",
       },
       "devDependencies": {
