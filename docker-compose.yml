@@ -103,6 +103,34 @@ services:
     networks:
       - app-network
 
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "8082:8080"
+    networks:
+      - app-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - app-network
+    depends_on:
+      - cadvisor
+
   tempo:
     image: grafana/tempo:2.5.0
     command: ["-config.file=/etc/tempo/tempo.yaml"]
@@ -162,4 +190,5 @@ volumes:
   mysql_data:
   tempo_data:
   loki_data:
+  prometheus_data:
   grafana_data:
