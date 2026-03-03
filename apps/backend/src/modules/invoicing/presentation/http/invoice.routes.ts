@@ -9,7 +9,7 @@ import { deleteInvoiceHandler } from "#invoicing/application/commands/delete-inv
 import { retryInvoiceHandler } from "#invoicing/application/commands/retry-invoice/retry-invoice.handler";
 import type { IMessagePublisher } from "#invoicing/application/ports/message-publisher.port";
 import { listInvoicesHandler } from "#invoicing/application/queries/list-invoices/list-invoices.handler";
-import type { InvoiceFilters } from "#invoicing/domain/repositories/invoice.repository.interface";
+import type { ListInvoicesQuery } from "#invoicing/application/queries/list-invoices/list-invoices.query";
 import { prismaInvoiceRepository } from "#invoicing/infrastructure/repositories/prisma-invoice.repository";
 import { toInvoiceDTO } from "#invoicing/presentation/http/invoice.mapper";
 import { authPlugin } from "#shared/plugins/auth.plugin";
@@ -36,7 +36,8 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
         "/",
         async ({ status, currentUser, requestId, query }) => {
           return runWithContext(requestId, async () => {
-            const filters: InvoiceFilters = {
+            const listQuery: ListInvoicesQuery = {
+              userId: currentUser.userId,
               page: query.page ?? 1,
               limit: query.limit ?? 20,
               ...(query.status !== undefined && { status: query.status }),
@@ -44,7 +45,7 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
               ...(query.minAmount !== undefined && { minAmount: query.minAmount }),
               ...(query.maxAmount !== undefined && { maxAmount: query.maxAmount }),
             };
-            const result = await listInvoicesHandler(repository, currentUser.userId, filters);
+            const result = await listInvoicesHandler(listQuery, { repository });
             if (!result.ok) {
               logger.error({ err: result.error.cause }, result.error.message);
               markSpanError(result.error.cause, result.error.message);
@@ -53,8 +54,8 @@ export function invoiceRoutes({ jwtSecret }: InvoiceRoutesOptions) {
             return {
               data: result.value.items.map(toInvoiceDTO),
               total: result.value.total,
-              page: filters.page,
-              limit: filters.limit,
+              page: listQuery.page,
+              limit: listQuery.limit,
             };
           });
         },

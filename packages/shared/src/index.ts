@@ -1,3 +1,11 @@
+// Result<T, E> — a discriminated union for explicit, type-safe error handling.
+// Functions return Result instead of throwing so callers are forced to handle
+// both the success and failure paths at compile time.
+export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
+
+export const ok = <T>(value: T): Result<T, never> => ({ ok: true, value });
+export const err = <E>(error: E): Result<never, E> => ({ ok: false, error });
+
 // UserDTO is the public transport shape for User data (HTTP responses, frontend).
 // It deliberately excludes passwordHash — that field is an infrastructure detail
 // used only by the backend's own domain layer (BackendUser).
