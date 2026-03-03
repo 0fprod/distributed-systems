@@ -1,18 +1,29 @@
 FROM oven/bun:1.3.6-alpine
 
 WORKDIR /app
+
 # Toolchain para node-gyp (ssh2)
 RUN apk add --no-cache python3 make g++ git
 ENV PYTHON=/usr/bin/python3
 ENV HUSKY=0
 
-# Copia TODO el repo (usa .dockerignore para no llevarte node_modules, etc.)
-COPY . .
+# Copia solo los manifiestos del workspace — cacheado mientras no cambien deps
+COPY package.json bun.lock ./
+COPY apps/frontend/package.json   apps/frontend/
+COPY apps/backend/package.json    apps/backend/
+COPY apps/worker/package.json     apps/worker/
+COPY packages/shared/package.json     packages/shared/
+COPY packages/database/package.json   packages/database/
+COPY packages/logger/package.json     packages/logger/
+COPY packages/otel/package.json       packages/otel/
+COPY packages/rabbitmq/package.json   packages/rabbitmq/
+COPY tests/integration/package.json  tests/integration/
 
+# Instala dependencias — solo se re-ejecuta si cambian los manifiestos
 RUN bun install --frozen-lockfile --verbose
 
-# (si quieres mantener tus symlinks, puedes dejarlos, pero probablemente ya no hagan falta)
-# ...
+# Copia el código fuente — no invalida la capa de instalación
+COPY . .
 
 WORKDIR /app/apps/backend
 EXPOSE 3000

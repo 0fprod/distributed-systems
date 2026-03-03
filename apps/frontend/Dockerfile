@@ -8,11 +8,24 @@ RUN apk add --no-cache python3 make g++ git
 ENV PYTHON=/usr/bin/python3
 ENV HUSKY=0
 
-# Copia todo el monorepo (usa .dockerignore para excluir node_modules, .git, dist, etc.)
-COPY . .
+# Copia solo los manifiestos del workspace — esta capa se cachea mientras
+# no cambien package.json ni bun.lock, independientemente del código fuente.
+COPY package.json bun.lock ./
+COPY apps/frontend/package.json   apps/frontend/
+COPY apps/backend/package.json    apps/backend/
+COPY apps/worker/package.json     apps/worker/
+COPY packages/shared/package.json     packages/shared/
+COPY packages/database/package.json   packages/database/
+COPY packages/logger/package.json     packages/logger/
+COPY packages/otel/package.json       packages/otel/
+COPY packages/rabbitmq/package.json   packages/rabbitmq/
+COPY tests/integration/package.json  tests/integration/
 
-# Instala deps del workspace (reproducible)
+# Instala dependencias — solo se re-ejecuta si cambian los manifiestos
 RUN bun install --frozen-lockfile
+
+# Copia el código fuente — los cambios aquí no invalidan la capa de instalación
+COPY . .
 
 # Build frontend
 WORKDIR /app/apps/frontend
