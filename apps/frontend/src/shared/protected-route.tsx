@@ -1,6 +1,6 @@
 import { Navigate, Outlet } from "react-router-dom";
 
-import { useCurrentUser } from "#shared/use-current-user";
+import { useCurrentUser } from "#features/auth/auth.repository";
 
 export function ProtectedRoute() {
   const { data: user, isLoading } = useCurrentUser();

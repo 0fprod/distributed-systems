@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 export function useDebounce(
   externalValue: string,
   onCommit: (value: string) => void,
-  delay = 3000,
+  delay = 1500,
 ) {
   const [input, setInput] = useState(externalValue);
 

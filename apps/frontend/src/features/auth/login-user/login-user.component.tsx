@@ -1,46 +1,28 @@
-import * as Sentry from "@sentry/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { QueryKeys } from "#shared/query-keys";
-
-import type { LoginUserPayload } from "./login-user.mutation";
-import { loginUser } from "./login-user.mutation";
+import { useUserMutations } from "#features/auth/auth.repository";
+import type { LoginPayload } from "#features/auth/auth.repository";
 
 interface LoginUserComponentProps {
   onLoggedIn: () => void;
 }
 
 export function LoginUserComponent({ onLoggedIn }: LoginUserComponentProps) {
-  const [form, setForm] = useState<LoginUserPayload>({ email: "", password: "" });
-  const queryClient = useQueryClient();
-
-  const mutation = useMutation({
-    mutationFn: loginUser,
-    onSuccess: async () => {
-      await queryClient.refetchQueries({ queryKey: QueryKeys.me });
-      const user = queryClient.getQueryData<{ id: number; email: string }>(QueryKeys.me);
-      if (user) {
-        Sentry.setUser({ id: String(user.id), email: user.email });
-      }
-      onLoggedIn();
-    },
-  });
+  const [form, setForm] = useState<LoginPayload>({ email: "", password: "" });
+  const { login } = useUserMutations({ onLogin: onLoggedIn });
 
   function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    mutation.mutate(form);
+    login.mutate(form);
   }
 
   return (
     <div className="space-y-4 rounded-lg bg-white p-6 shadow">
       <h2 className="text-xl font-semibold text-gray-800">Sign in to your account</h2>
 
-      {mutation.isError && (
+      {login.isError && (
         <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
-          {mutation.error instanceof Error
-            ? mutation.error.message
-            : "Login failed. Please try again."}
+          {login.error instanceof Error ? login.error.message : "Login failed. Please try again."}
         </div>
       )}
 
@@ -75,10 +57,10 @@ export function LoginUserComponent({ onLoggedIn }: LoginUserComponentProps) {
 
         <button
           type="submit"
-          disabled={mutation.isPending}
+          disabled={login.isPending}
           className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {mutation.isPending ? "Signing in..." : "Sign in"}
+          {login.isPending ? "Signing in..." : "Sign in"}
         </button>
       </form>
     </div>

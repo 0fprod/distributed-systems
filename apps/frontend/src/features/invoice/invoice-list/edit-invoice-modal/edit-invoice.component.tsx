@@ -1,9 +1,8 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import type { InvoiceDTO } from "@distributed-systems/shared";
 
-import { request } from "#shared/request";
+import { useInvoiceMutations } from "#features/invoice/invoice.repository";
 
 interface Props {
   invoice: InvoiceDTO;
@@ -11,31 +10,14 @@ interface Props {
 }
 
 export function EditInvoiceModal({ invoice, onClose }: Props) {
-  const queryClient = useQueryClient();
+  const { update } = useInvoiceMutations();
   const [name, setName] = useState(invoice.name);
   const [amount, setAmount] = useState(String(invoice.amount));
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      const response = await request(`/invoices/${invoice.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, amount: Number(amount) }),
-      });
-
-      if (!response.ok) {
-        throw new Error(response.statusText);
-      }
-
-      await queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      onClose();
-    } finally {
-      setIsSubmitting(false);
-    }
+    await update.mutateAsync({ id: invoice.id, name, amount: Number(amount) });
+    onClose();
   }
 
   return (
@@ -81,10 +63,10 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={update.isPending}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
             >
-              {isSubmitting ? "Retrying..." : "Retry"}
+              {update.isPending ? "Retrying..." : "Retry"}
             </button>
           </div>
         </form>

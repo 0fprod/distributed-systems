@@ -15,7 +15,7 @@ beforeEach(() => {
 });
 
 async function renderCurrentUser() {
-  const { useCurrentUser } = await import("./use-current-user");
+  const { useCurrentUser } = await import("./auth.repository");
   const client = makeClient();
   let result!: ReturnType<typeof renderHook<ReturnType<typeof useCurrentUser>, unknown>>;
   await act(async () => {

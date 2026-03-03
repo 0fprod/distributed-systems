@@ -1,7 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, expect, mock, test } from "bun:test";
 
-import { QueryKeys } from "#shared/query-keys";
 import { makeClient, makeWrapper } from "#test/query-helpers";
 import { makeFakeWebSocket } from "#test/websocket-helpers";
 
@@ -40,7 +39,7 @@ test("invalidates invoices query on invoice:completed message", async () => {
     fakeWs.emit({ type: "invoice:completed", invoiceId: 42 });
   });
 
-  expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: QueryKeys.invoices });
+  expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["invoices"] });
 });
 
 test("invalidates invoices query on invoice:inprogress message", async () => {
@@ -54,7 +53,7 @@ test("invalidates invoices query on invoice:inprogress message", async () => {
     fakeWs.emit({ type: "invoice:inprogress", invoiceId: 1 });
   });
 
-  expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: QueryKeys.invoices });
+  expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["invoices"] });
 });
 
 test("does not invalidate on unknown message type", async () => {

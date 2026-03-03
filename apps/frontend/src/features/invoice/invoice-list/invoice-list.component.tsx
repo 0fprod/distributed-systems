@@ -1,18 +1,16 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { InvoiceStatus } from "@distributed-systems/shared";
 import type { InvoiceDTO } from "@distributed-systems/shared";
 
+import { useInvoices } from "#features/invoice/invoice.repository";
 import type { InvoiceFilters } from "#shared/query-keys";
 
-import { deleteInvoice } from "./delete-invoice";
 import { EditInvoiceModal } from "./edit-invoice-modal";
 import { InvoiceFilterBar } from "./invoice-filter-bar.component";
 import { InvoiceListEmpty } from "./invoice-list.empty";
 import { InvoicePagination } from "./invoice-pagination.component";
 import { InvoiceStatusBadge } from "./invoice-status-badge";
-import { useInvoices } from "./use-invoices.hook";
 
 interface Props {
   filters: InvoiceFilters;
@@ -20,14 +18,8 @@ interface Props {
 }
 
 export function InvoiceList({ filters, onFilterChange }: Props) {
-  const { data } = useInvoices(filters);
+  const { data, remove } = useInvoices(filters);
   const [editingInvoice, setEditingInvoice] = useState<InvoiceDTO | null>(null);
-  const queryClient = useQueryClient();
-
-  async function handleDelete(id: string) {
-    await deleteInvoice(id);
-    await queryClient.invalidateQueries({ queryKey: ["invoices"] });
-  }
 
   return (
     <>
@@ -70,7 +62,7 @@ export function InvoiceList({ filters, onFilterChange }: Props) {
                   <td className="py-2">
                     <button
                       type="button"
-                      onClick={() => handleDelete(invoice.id)}
+                      onClick={() => remove.mutate(invoice.id)}
                       className="text-xs text-red-500 underline hover:text-red-700"
                     >
                       Delete

@@ -3,8 +3,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, mock, spyOn, test } from "bun:test";
 
-import { QueryKeys } from "#shared/query-keys";
-
 import { GenerateInvoiceForm } from "./generate-invoice-form.component";
 
 mock.module("#shared/request", () => ({
@@ -59,6 +57,6 @@ test("invalidates invoices query after successful submit", async () => {
   await user.click(screen.getByRole("button", { name: "Generate Invoice" }));
 
   await waitFor(() => {
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: QueryKeys.invoices });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["invoices"] });
   });
 });

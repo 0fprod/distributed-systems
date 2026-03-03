@@ -1,5 +1,5 @@
 import type { InvoiceFilters } from "#shared/query-keys";
-import { useDebounce } from "#shared/use-debounce.js";
+import { useDebounce } from "#shared/use-debounce";
 
 interface Props {
   filters: InvoiceFilters;

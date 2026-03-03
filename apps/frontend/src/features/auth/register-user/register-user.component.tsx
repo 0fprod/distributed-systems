@@ -1,34 +1,29 @@
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
-import type { RegisterUserPayload } from "./register-user.mutation";
-import { registerUser } from "./register-user.mutation";
+import { useUserMutations } from "#features/auth/auth.repository";
+import type { RegisterPayload } from "#features/auth/auth.repository";
 
 interface RegisterUserComponentProps {
   onSuccess: () => void;
 }
 
 export function RegisterUserComponent({ onSuccess }: RegisterUserComponentProps) {
-  const [form, setForm] = useState<RegisterUserPayload>({ name: "", email: "", password: "" });
-
-  const mutation = useMutation({
-    mutationFn: registerUser,
-    onSuccess,
-  });
+  const [form, setForm] = useState<RegisterPayload>({ name: "", email: "", password: "" });
+  const { register } = useUserMutations({ onRegister: onSuccess });
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    mutation.mutate(form);
+    register.mutate(form);
   }
 
   return (
     <div className="space-y-4 rounded-lg bg-white p-6 shadow">
       <h2 className="text-xl font-semibold text-gray-800">Create an account</h2>
 
-      {mutation.isError && (
+      {register.isError && (
         <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
-          {mutation.error instanceof Error
-            ? mutation.error.message
+          {register.error instanceof Error
+            ? register.error.message
             : "Registration failed. Please try again."}
         </div>
       )}
@@ -78,10 +73,10 @@ export function RegisterUserComponent({ onSuccess }: RegisterUserComponentProps)
 
         <button
           type="submit"
-          disabled={mutation.isPending}
+          disabled={register.isPending}
           className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {mutation.isPending ? "Registering..." : "Register"}
+          {register.isPending ? "Registering..." : "Register"}
         </button>
       </form>
     </div>
