@@ -41,7 +41,7 @@ test("renders invoice rows when data resolves", async () => {
     { id: "3", userId: "3", name: "Stark Industries", amount: 9800, status: "pending" },
   ];
 
-  requestMock.mockImplementation(() => httpOk(invoices));
+  requestMock.mockImplementation(() => httpOk({ data: invoices, total: 3, page: 1, limit: 20 }));
 
   const client = makeClient();
   await act(async () => {
@@ -59,7 +59,7 @@ test("renders invoice rows when data resolves", async () => {
 });
 
 test("renders empty state when list is empty", async () => {
-  requestMock.mockImplementation(() => httpOk([]));
+  requestMock.mockImplementation(() => httpOk({ data: [], total: 0, page: 1, limit: 20 }));
 
   const client = makeClient();
   await act(async () => {
@@ -86,7 +86,7 @@ test("renders error state with retry button when fetch fails", async () => {
   });
 
   const user = userEvent.setup();
-  requestMock.mockImplementationOnce(() => httpOk([]));
+  requestMock.mockImplementationOnce(() => httpOk({ data: [], total: 0, page: 1, limit: 20 }));
   await user.click(screen.getByRole("button", { name: /retry/i }));
 
   await waitFor(() => {
@@ -100,7 +100,7 @@ test("shows Edit & Retry button for failed invoices", async () => {
     { id: "2", userId: "2", name: "Wayne Enterprises", amount: 500, status: "failed" },
   ];
 
-  requestMock.mockImplementation(() => httpOk(invoices));
+  requestMock.mockImplementation(() => httpOk({ data: invoices, total: 2, page: 1, limit: 20 }));
 
   const client = makeClient();
   await act(async () => {
@@ -120,7 +120,7 @@ test("clicking Edit & Retry opens the modal", async () => {
     { id: "2", userId: "2", name: "Wayne Enterprises", amount: 500, status: "failed" },
   ];
 
-  requestMock.mockImplementation(() => httpOk(invoices));
+  requestMock.mockImplementation(() => httpOk({ data: invoices, total: 1, page: 1, limit: 20 }));
 
   const client = makeClient();
   await act(async () => {
@@ -145,7 +145,7 @@ test("each invoice row renders a Delete button", async () => {
     { id: "2", userId: "1", name: "Globex Inc", amount: 450, status: "inprogress" },
   ];
 
-  requestMock.mockImplementation(() => httpOk(invoices));
+  requestMock.mockImplementation(() => httpOk({ data: invoices, total: 2, page: 1, limit: 20 }));
 
   const client = makeClient();
   await act(async () => {
@@ -165,9 +165,11 @@ test("clicking Delete calls DELETE /invoices/:id", async () => {
     { id: "5", userId: "1", name: "Umbrella Corp", amount: 800, status: "completed" },
   ];
 
-  requestMock.mockImplementationOnce(() => httpOk(invoices));
+  requestMock.mockImplementationOnce(() =>
+    httpOk({ data: invoices, total: 1, page: 1, limit: 20 }),
+  );
   requestMock.mockImplementationOnce(() => httpOk(null));
-  requestMock.mockImplementationOnce(() => httpOk([]));
+  requestMock.mockImplementationOnce(() => httpOk({ data: [], total: 0, page: 1, limit: 20 }));
 
   const client = makeClient();
   await act(async () => {
@@ -200,9 +202,13 @@ test("after Delete succeeds the invoices query is refetched and updated list is 
     { id: "2", userId: "1", name: "Globex Inc", amount: 450, status: "inprogress" },
   ];
 
-  requestMock.mockImplementationOnce(() => httpOk(invoices));
+  requestMock.mockImplementationOnce(() =>
+    httpOk({ data: invoices, total: 2, page: 1, limit: 20 }),
+  );
   requestMock.mockImplementationOnce(() => httpOk(null));
-  requestMock.mockImplementationOnce(() => httpOk(invoicesAfterDelete));
+  requestMock.mockImplementationOnce(() =>
+    httpOk({ data: invoicesAfterDelete, total: 1, page: 1, limit: 20 }),
+  );
 
   const client = makeClient();
   await act(async () => {
@@ -229,9 +235,13 @@ test("submitting the edit modal calls PATCH and closes on success", async () => 
     { id: "2", userId: "2", name: "Wayne Enterprises", amount: 500, status: "failed" },
   ];
 
-  requestMock.mockImplementationOnce(() => httpOk(invoices));
+  requestMock.mockImplementationOnce(() =>
+    httpOk({ data: invoices, total: 1, page: 1, limit: 20 }),
+  );
   requestMock.mockImplementationOnce(() => httpOk({ id: 2 }));
-  requestMock.mockImplementationOnce(() => httpOk(invoices));
+  requestMock.mockImplementationOnce(() =>
+    httpOk({ data: invoices, total: 1, page: 1, limit: 20 }),
+  );
 
   const client = makeClient();
   await act(async () => {

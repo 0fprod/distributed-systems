@@ -16,6 +16,13 @@ export const InvoiceStatus = {
 
 export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 // InvoiceDTO is the public transport shape for Invoice data.
 // IDs are UUIDs (string) to match the Prisma schema and avoid leaking
 // auto-increment sequences. Both id and userId are strings.

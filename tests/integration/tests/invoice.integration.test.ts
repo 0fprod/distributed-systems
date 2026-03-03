@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from "bun:test";
 
-import type { InvoiceDTO } from "@distributed-systems/shared";
+import type { InvoiceDTO, PaginatedResponse } from "@distributed-systems/shared";
 import { ApiRoutes, InvoiceStatus } from "@distributed-systems/shared";
 
 import { givenAnInvoice } from "../builders/invoice.builder";
@@ -56,7 +56,7 @@ describe("Invoice integration", () => {
     const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
       headers: { Cookie: sessionCookie },
     });
-    const invoices = (await listRes.json()) as InvoiceDTO[];
+    const { data: invoices } = (await listRes.json()) as PaginatedResponse<InvoiceDTO>;
 
     expect(invoices).toHaveLength(1);
     expect(invoices[0]).toMatchObject({
@@ -83,7 +83,7 @@ describe("Invoice integration", () => {
     const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
       headers: { Cookie: sessionCookie },
     });
-    const invoices = (await listRes.json()) as InvoiceDTO[];
+    const { data: invoices } = (await listRes.json()) as PaginatedResponse<InvoiceDTO>;
     expect(invoices).toHaveLength(0);
   }, 15_000);
 
@@ -110,7 +110,7 @@ describe("Invoice integration", () => {
     const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
       headers: { Cookie: sessionCookie },
     });
-    const invoices = (await listRes.json()) as InvoiceDTO[];
+    const { data: invoices } = (await listRes.json()) as PaginatedResponse<InvoiceDTO>;
 
     expect(invoices).toHaveLength(1);
     expect(invoices[0]).toMatchObject({
@@ -219,7 +219,7 @@ describe("Invoice integration", () => {
     const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
       headers: { Cookie: sessionCookie },
     });
-    const invoicesA = (await listRes.json()) as InvoiceDTO[];
+    const { data: invoicesA } = (await listRes.json()) as PaginatedResponse<InvoiceDTO>;
 
     // Assert — user A sees nothing (invoice belongs to B).
     expect(invoicesA).toHaveLength(0);
@@ -228,7 +228,7 @@ describe("Invoice integration", () => {
     const listResB = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
       headers: { Cookie: cookieB },
     });
-    const invoicesB = (await listResB.json()) as InvoiceDTO[];
+    const { data: invoicesB } = (await listResB.json()) as PaginatedResponse<InvoiceDTO>;
     expect(invoicesB).toHaveLength(1);
     expect(invoicesB[0]).toMatchObject({ name: "B Invoice" });
   }, 15_000);

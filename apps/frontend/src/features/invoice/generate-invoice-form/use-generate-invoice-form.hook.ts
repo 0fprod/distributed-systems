@@ -3,7 +3,6 @@ import { useState } from "react";
 
 import { ApiRoutes } from "@distributed-systems/shared";
 
-import { QueryKeys } from "#shared/query-keys";
 import { request } from "#shared/request";
 
 interface InvoiceFormData {
@@ -28,7 +27,7 @@ export function useGenerateInvoiceForm() {
       throw new Error(response.statusText);
     }
 
-    await queryClient.invalidateQueries({ queryKey: QueryKeys.invoices });
+    await queryClient.invalidateQueries({ queryKey: ["invoices"] });
     setForm({ name: "", amount: "" });
   }
 
@@ -36,7 +35,7 @@ export function useGenerateInvoiceForm() {
     await request(ApiRoutes.CREATE_INVALID_INVOICE, {
       method: "POST",
     });
-    await queryClient.invalidateQueries({ queryKey: QueryKeys.invoices });
+    await queryClient.invalidateQueries({ queryKey: ["invoices"] });
   }
 
   return { form, setForm, handleSubmit, handleGenerateInvalidInvoice };

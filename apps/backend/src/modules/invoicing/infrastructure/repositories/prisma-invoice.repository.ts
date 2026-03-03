@@ -43,14 +43,34 @@ export const prismaInvoiceRepository: IInvoiceRepository = {
     }
   },
 
-  async findAll(userId) {
+  async findAll(userId, filters) {
     try {
-      const raws = await prisma.invoice.findMany({
-        where: { userId: userId.value },
-        orderBy: { createdAt: "desc" },
-      });
+      const where = {
+        userId: userId.value,
+        ...(filters.status !== undefined && { status: filters.status }),
+        ...(filters.name !== undefined &&
+          filters.name !== "" && {
+            name: { contains: filters.name },
+          }),
+        ...((filters.minAmount !== undefined || filters.maxAmount !== undefined) && {
+          amount: {
+            ...(filters.minAmount !== undefined && { gte: filters.minAmount }),
+            ...(filters.maxAmount !== undefined && { lte: filters.maxAmount }),
+          },
+        }),
+      };
 
-      return ok(raws.map(toBackendInvoice));
+      const [raws, total] = await prisma.$transaction([
+        prisma.invoice.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          skip: (filters.page - 1) * filters.limit,
+          take: filters.limit,
+        }),
+        prisma.invoice.count({ where }),
+      ]);
+
+      return ok({ items: raws.map(toBackendInvoice), total });
     } catch (e) {
       logger.error({ err: e }, "failed to list invoices");
       return err(new InvoicePersistenceError("Failed to list invoices", e));

@@ -3,7 +3,6 @@ import { useEffect } from "react";
 
 import { ApiRoutes, InvoiceEvents } from "@distributed-systems/shared";
 
-import { QueryKeys } from "#shared/query-keys";
 import { createWebSocket } from "#shared/websocket";
 
 interface InvoiceStatusMessage {
@@ -38,7 +37,7 @@ export function useInvoiceWebSocket() {
           message.type === InvoiceEvents.INPROGRESS ||
           message.type === InvoiceEvents.FAILED
         ) {
-          void queryClient.invalidateQueries({ queryKey: QueryKeys.invoices });
+          void queryClient.invalidateQueries({ queryKey: ["invoices"] });
         }
       };
 

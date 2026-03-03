@@ -3,7 +3,6 @@ import { useState } from "react";
 
 import type { InvoiceDTO } from "@distributed-systems/shared";
 
-import { QueryKeys } from "#shared/query-keys";
 import { request } from "#shared/request";
 
 interface Props {
@@ -32,7 +31,7 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
         throw new Error(response.statusText);
       }
 
-      await queryClient.invalidateQueries({ queryKey: QueryKeys.invoices });
+      await queryClient.invalidateQueries({ queryKey: ["invoices"] });
       onClose();
     } finally {
       setIsSubmitting(false);

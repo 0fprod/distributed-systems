@@ -248,7 +248,9 @@ export async function waitForStatus(
     const headers: Record<string, string> = {};
     if (sessionCookie) headers["Cookie"] = sessionCookie;
     const res = await fetch(`${baseUrl}${ApiRoutes.INVOICES}`, { headers });
-    const invoices = (await res.json()) as Array<{ id: string; status: string }>;
+    const { data: invoices } = (await res.json()) as {
+      data: Array<{ id: string; status: string }>;
+    };
     if (invoices.find((i) => i.id === invoiceId)?.status === expectedStatus) return;
     await Bun.sleep(300);
   }
