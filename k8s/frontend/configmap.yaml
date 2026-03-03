@@ -5,6 +5,13 @@ metadata:
   namespace: distributed-systems
 data:
   nginx.conf: |
+    # Browser direct navigation sends Accept: text/html — route to SPA.
+    # fetch() requests send Accept: */* — proxy to backend.
+    map $http_accept $is_browser_nav {
+        default     0;
+        "~*text/html" 1;
+    }
+
     server {
         listen 80;
         server_name _;
@@ -15,6 +22,9 @@ data:
         # No Docker-specific resolver or dynamic variable needed.
 
         location /invoices {
+            if ($is_browser_nav) {
+                rewrite ^ /index.html last;
+            }
             proxy_pass http://backend:3000;
         }
 
