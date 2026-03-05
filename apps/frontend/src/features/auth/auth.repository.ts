@@ -110,6 +110,7 @@ export function useCurrentUser(): { data: CurrentUser | null; isLoading: boolean
   const { data = null, isLoading } = useQuery({
     queryKey: QueryKeys.me,
     queryFn: fetchCurrentUser,
+    staleTime: 5 * 60 * 1000,
   });
   return { data, isLoading };
 }

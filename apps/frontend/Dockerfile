@@ -1,5 +1,7 @@
 # ─── Stage 1: build ──────────────────────────────────────────────────────────
-FROM oven/bun:1.3.6-alpine AS builder
+# Builder runs on the native build platform (arm64 on M2) — no QEMU needed.
+# The output is static HTML/JS/CSS which is architecture-independent.
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.6-alpine AS builder
 
 WORKDIR /app
 
@@ -32,12 +34,11 @@ WORKDIR /app/apps/frontend
 RUN bun run build
 
 # ─── Stage 2: serve via nginx ─────────────────────────────────────────────────
-FROM nginx:alpine AS runtime
-
-RUN rm -rf /usr/share/nginx/html/*
+# nginx-unprivileged runs as uid 101 (non-root), enabling runAsNonRoot in k8s.
+FROM nginxinc/nginx-unprivileged:alpine AS runtime
 
 COPY --from=builder /app/apps/frontend/dist/ /usr/share/nginx/html/
 COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]

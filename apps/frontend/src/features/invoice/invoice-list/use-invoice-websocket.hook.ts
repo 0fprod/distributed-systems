@@ -1,7 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import { ApiRoutes, InvoiceEvents } from "@distributed-systems/shared";
+import { ApiRoutes, InvoiceEvents, InvoiceStatus } from "@distributed-systems/shared";
+import type { InvoiceDTO, PaginatedResponse } from "@distributed-systems/shared";
 
 import { createWebSocket } from "#shared/websocket";
 
@@ -10,8 +11,14 @@ interface InvoiceStatusMessage {
     | typeof InvoiceEvents.INPROGRESS
     | typeof InvoiceEvents.COMPLETED
     | typeof InvoiceEvents.FAILED;
-  invoiceId: number;
+  invoiceId: string;
 }
+
+const eventToStatus = {
+  [InvoiceEvents.INPROGRESS]: InvoiceStatus.INPROGRESS,
+  [InvoiceEvents.COMPLETED]: InvoiceStatus.COMPLETED,
+  [InvoiceEvents.FAILED]: InvoiceStatus.FAILED,
+} as const;
 
 function buildWsUrl(path: string): string {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -31,14 +38,21 @@ export function useInvoiceWebSocket() {
 
       ws.onmessage = (event: MessageEvent<string>) => {
         const message = JSON.parse(event.data) as InvoiceStatusMessage;
+        const status = eventToStatus[message.type];
+        if (!status) return;
 
-        if (
-          message.type === InvoiceEvents.COMPLETED ||
-          message.type === InvoiceEvents.INPROGRESS ||
-          message.type === InvoiceEvents.FAILED
-        ) {
-          void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-        }
+        queryClient.setQueriesData<PaginatedResponse<InvoiceDTO>>(
+          { queryKey: ["invoices"] },
+          (old) => {
+            if (!old) return old;
+            return {
+              ...old,
+              data: old.data.map((invoice) =>
+                invoice.id === String(message.invoiceId) ? { ...invoice, status } : invoice,
+              ),
+            };
+          },
+        );
       };
 
       ws.onclose = () => {
