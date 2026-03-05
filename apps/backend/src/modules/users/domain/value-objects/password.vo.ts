@@ -4,7 +4,7 @@ import { type Result, err, ok } from "#shared/core/result";
 import { WeakPasswordError } from "#users/domain/errors/user.errors";
 
 const SALT_ROUNDS = 10;
-const MIN_LENGTH = 6;
+const MIN_LENGTH = 12;
 
 export class Password {
   private constructor(private readonly _hash: string) {}

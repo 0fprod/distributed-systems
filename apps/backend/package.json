@@ -21,8 +21,10 @@
     "@distributed-systems/logger": "workspace:*",
     "@distributed-systems/rabbitmq": "workspace:*",
     "@distributed-systems/shared": "workspace:*",
+    "@elysiajs/cors": "^1.4.0",
     "@elysiajs/jwt": "^1.4.0",
     "@elysiajs/opentelemetry": "^1.4.0",
+    "elysia-rate-limit": "^4.3.0",
     "@opentelemetry/api": "^1.9.0",
     "bcryptjs": "^3.0.3",
     "elysia": "^1.3.0"

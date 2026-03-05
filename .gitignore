@@ -50,3 +50,8 @@ packages/database/src/generated/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Secrets — plain-text k8s Secret files must never be committed.
+# All secrets are managed via OCI Vault + External Secrets Operator.
+k8s/secret.yaml
+k8s/**/*plaintext*.yaml

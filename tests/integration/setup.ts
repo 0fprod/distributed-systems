@@ -207,10 +207,14 @@ export async function loginAs(
   baseUrl: string,
   email: string,
   password: string,
+  ip?: string, // optional X-Forwarded-For header for rate-limited tests
 ): Promise<LoginResult> {
+  const loginHeaders: Record<string, string> = { "Content-Type": "application/json" };
+  if (ip) loginHeaders["X-Forwarded-For"] = ip;
+
   const loginRes = await fetch(`${baseUrl}${ApiRoutes.LOGIN}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: loginHeaders,
     body: JSON.stringify({ email, password }),
   });
 
@@ -224,8 +228,10 @@ export async function loginAs(
   // Strip cookie attributes (Path, HttpOnly, etc.) — keep only name=value.
   const cookie = setCookie.split(";")[0]!;
 
+  const meHeaders: Record<string, string> = { Cookie: cookie };
+  if (ip) meHeaders["X-Forwarded-For"] = ip;
   const meRes = await fetch(`${baseUrl}${ApiRoutes.ME}`, {
-    headers: { Cookie: cookie },
+    headers: meHeaders,
   });
   if (!meRes.ok) throw new Error(`GET /me failed: ${meRes.status}`);
 
@@ -242,11 +248,13 @@ export async function waitForStatus(
   expectedStatus: string,
   timeoutMs = 20_000,
   sessionCookie?: string,
+  ip?: string,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const headers: Record<string, string> = {};
     if (sessionCookie) headers["Cookie"] = sessionCookie;
+    if (ip) headers["X-Forwarded-For"] = ip;
     const res = await fetch(`${baseUrl}${ApiRoutes.INVOICES}`, { headers });
     const { data: invoices } = (await res.json()) as {
       data: Array<{ id: string; status: string }>;

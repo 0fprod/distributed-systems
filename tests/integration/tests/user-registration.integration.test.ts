@@ -22,7 +22,7 @@ describe("User registration", () => {
     const res = await fetch(`${ctx.baseUrl}${ApiRoutes.REGISTER}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Alice", email: "alice@example.com", password: "secret123" }),
+      body: JSON.stringify({ name: "Alice", email: "alice@example.com", password: "secret123456" }),
     });
 
     // Assert — HTTP
@@ -36,11 +36,11 @@ describe("User registration", () => {
     const user = await ctx.prisma.user.findUnique({ where: { email: "alice@example.com" } });
     expect(user).not.toBeNull();
     expect(user!.name).toBe("Alice");
-    expect(user!.password).not.toBe("secret123"); // must NOT be plain text
+    expect(user!.password).not.toBe("secret123456"); // must NOT be plain text
     expect(user!.password).toMatch(/^\$2[aby]\$/); // bcrypt hash
   }, 15_000);
 
-  it("returns 400 when password is shorter than 6 characters", async () => {
+  it("returns 422 when password is shorter than 12 characters", async () => {
     // Act
     const res = await fetch(`${ctx.baseUrl}${ApiRoutes.REGISTER}`, {
       method: "POST",
@@ -51,7 +51,7 @@ describe("User registration", () => {
     // Assert
     expect(res.status).toBe(422);
     const body = (await res.json()) as { message: string };
-    expect(body.message).toContain("6");
+    expect(body.message).toContain("12");
   }, 10_000);
 
   it("returns 400 when email is already registered", async () => {
@@ -59,14 +59,18 @@ describe("User registration", () => {
     await fetch(`${ctx.baseUrl}${ApiRoutes.REGISTER}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Carol", email: "carol@example.com", password: "secret123" }),
+      body: JSON.stringify({ name: "Carol", email: "carol@example.com", password: "secret123456" }),
     });
 
     // Act — register again with same email
     const res = await fetch(`${ctx.baseUrl}${ApiRoutes.REGISTER}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Carol 2", email: "carol@example.com", password: "secret456" }),
+      body: JSON.stringify({
+        name: "Carol 2",
+        email: "carol@example.com",
+        password: "secret456789012",
+      }),
     });
 
     // Assert

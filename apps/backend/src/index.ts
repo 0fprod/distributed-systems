@@ -1,5 +1,7 @@
-import { Elysia } from "elysia";
+import { cors } from "@elysiajs/cors";
 import { opentelemetry } from "@elysiajs/opentelemetry";
+import { Elysia } from "elysia";
+import { rateLimit } from "elysia-rate-limit";
 
 import { createLogger } from "@distributed-systems/logger";
 
@@ -16,8 +18,9 @@ import { userRoutes } from "#users/presentation/http/user.routes";
 const logger = createLogger("backend");
 
 // Single source of truth for the JWT secret, passed explicitly to all modules
-// that require it.
-const jwtSecret = process.env.JWT_SECRET ?? "supersecret_changeme";
+// that require it. Fail fast at startup if the secret is not injected.
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) throw new Error("JWT_SECRET env var is required");
 
 // RabbitMQ consumers for real-time UI updates via WebSocket.
 await startInvoiceInProgressConsumer();
@@ -29,7 +32,23 @@ const app = new Elysia()
   //   OTEL_SERVICE_NAME, OTEL_TRACES_EXPORTER, OTEL_EXPORTER_OTLP_ENDPOINT
   // No package imports needed here: NodeSDK auto-detects the OTLP exporter.
   .use(opentelemetry({ serviceName: process.env.OTEL_SERVICE_NAME ?? "backend" }))
+  .use(
+    cors({
+      origin: process.env.CORS_ORIGIN ?? "http://localhost:5173",
+      credentials: true,
+    }),
+  )
   .use(requestIdPlugin)
+  // Global rate limit: 60 req/min per IP. elysia-rate-limit is a singleton
+  // (named plugin), so this is the only active instance regardless of where
+  // it is used in sub-apps. X-Forwarded-For is set by ingress-nginx.
+  .use(
+    rateLimit({
+      max: 60,
+      duration: 60_000,
+      generator: (req) => req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown",
+    }),
+  )
 
   // onRequest fires BEFORE derive — requestId is not yet in context here.
   // Read directly from the header (same logic as the plugin) for logging.

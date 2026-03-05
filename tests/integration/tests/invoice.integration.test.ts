@@ -9,6 +9,12 @@ import { type Stack, loginAs, waitForStatus } from "../setup";
 let ctx: Stack;
 let sessionCookie: string;
 let userId: string; // UUID string since IDs migrated to uuid()
+let testIp: string; // unique IP for rate-limit isolation
+
+// helper to merge X-Forwarded-For header
+function withIp(headers: Record<string, string> = {}) {
+  return { "X-Forwarded-For": testIp, ...headers };
+}
 
 beforeAll(() => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -17,6 +23,9 @@ beforeAll(() => {
 });
 
 beforeEach(async () => {
+  // pick a random IP for this test so requests don't share the same rate-limit bucket
+  testIp = `10.0.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`;
+
   await ctx.prisma.invoice.deleteMany();
   await ctx.prisma.user.deleteMany();
 
@@ -26,12 +35,21 @@ beforeEach(async () => {
   // and then use the builder only for invoice ownership (userId).
   await fetch(`${ctx.baseUrl}${ApiRoutes.REGISTER}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: "Test User", email: "test@example.com", password: "secret123" }),
+    headers: withIp({ "Content-Type": "application/json" }),
+    body: JSON.stringify({
+      name: "Test User",
+      email: "test@example.com",
+      password: "secret123456",
+    }),
   });
 
   // Obtain a fresh session cookie and userId for every test.
-  ({ cookie: sessionCookie, userId } = await loginAs(ctx.baseUrl, "test@example.com", "secret123"));
+  ({ cookie: sessionCookie, userId } = await loginAs(
+    ctx.baseUrl,
+    "test@example.com",
+    "secret123456",
+    testIp,
+  ));
 });
 
 describe("Invoice integration", () => {
@@ -41,7 +59,7 @@ describe("Invoice integration", () => {
     // Act
     const postRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Cookie: sessionCookie },
+      headers: withIp({ "Content-Type": "application/json", Cookie: sessionCookie }),
       body: JSON.stringify({ name: "Acme Corp", amount: 1200 }),
     });
 
@@ -50,11 +68,11 @@ describe("Invoice integration", () => {
     // id is now a UUID string
     expect(typeof id).toBe("string");
 
-    await waitForStatus(ctx.baseUrl, id, InvoiceStatus.COMPLETED, 20_000, sessionCookie);
+    await waitForStatus(ctx.baseUrl, id, InvoiceStatus.COMPLETED, 20_000, sessionCookie, testIp);
 
     // Assert
     const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
-      headers: { Cookie: sessionCookie },
+      headers: withIp({ Cookie: sessionCookie }),
     });
     const { data: invoices } = (await listRes.json()) as PaginatedResponse<InvoiceDTO>;
 
@@ -74,14 +92,14 @@ describe("Invoice integration", () => {
     // Act
     const deleteRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}/${invoice.id}`, {
       method: "DELETE",
-      headers: { Cookie: sessionCookie },
+      headers: withIp({ Cookie: sessionCookie }),
     });
 
     // Assert
     expect(deleteRes.status).toBe(204);
 
     const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
-      headers: { Cookie: sessionCookie },
+      headers: withIp({ Cookie: sessionCookie }),
     });
     const { data: invoices } = (await listRes.json()) as PaginatedResponse<InvoiceDTO>;
     expect(invoices).toHaveLength(0);
@@ -99,16 +117,23 @@ describe("Invoice integration", () => {
     // Act
     const patchRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}/${failed.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Cookie: sessionCookie },
+      headers: withIp({ "Content-Type": "application/json", Cookie: sessionCookie }),
       body: JSON.stringify({ name: "Fixed Name", amount: 500 }),
     });
 
     expect(patchRes.status).toBe(200);
-    await waitForStatus(ctx.baseUrl, failed.id, InvoiceStatus.COMPLETED, 20_000, sessionCookie);
+    await waitForStatus(
+      ctx.baseUrl,
+      failed.id,
+      InvoiceStatus.COMPLETED,
+      20_000,
+      sessionCookie,
+      testIp,
+    );
 
     // Assert
     const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
-      headers: { Cookie: sessionCookie },
+      headers: withIp({ Cookie: sessionCookie }),
     });
     const { data: invoices } = (await listRes.json()) as PaginatedResponse<InvoiceDTO>;
 
@@ -131,7 +156,7 @@ describe("Invoice integration", () => {
     // Act
     const patchRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}/${completed.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Cookie: sessionCookie },
+      headers: withIp({ "Content-Type": "application/json", Cookie: sessionCookie }),
       body: JSON.stringify({ name: "X", amount: 100 }),
     });
 
@@ -143,21 +168,26 @@ describe("Invoice integration", () => {
     // Arrange — register user B and create an invoice for them.
     await fetch(`${ctx.baseUrl}${ApiRoutes.REGISTER}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withIp({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         name: "Other User",
         email: "other@example.com",
-        password: "secret456",
+        password: "secret456789012",
       }),
     });
-    const { userId: userIdB } = await loginAs(ctx.baseUrl, "other@example.com", "secret456");
+    const { userId: userIdB } = await loginAs(
+      ctx.baseUrl,
+      "other@example.com",
+      "secret456789012",
+      testIp,
+    );
 
     const invoiceB = await givenAnInvoice(ctx.prisma).forUser(userIdB).withName("B Invoice").save();
 
     // Act — user A (sessionCookie from beforeEach) tries to delete B's invoice.
     const deleteRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}/${invoiceB.id}`, {
       method: "DELETE",
-      headers: { Cookie: sessionCookie },
+      headers: withIp({ Cookie: sessionCookie }),
     });
 
     // Assert — the server must reject the request (403 to avoid leaking ownership).
@@ -168,14 +198,19 @@ describe("Invoice integration", () => {
     // Arrange — register user B and create a failed invoice for them.
     await fetch(`${ctx.baseUrl}${ApiRoutes.REGISTER}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withIp({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         name: "Other User",
         email: "other@example.com",
-        password: "secret456",
+        password: "secret456789012",
       }),
     });
-    const { userId: userIdB } = await loginAs(ctx.baseUrl, "other@example.com", "secret456");
+    const { userId: userIdB } = await loginAs(
+      ctx.baseUrl,
+      "other@example.com",
+      "secret456789012",
+      testIp,
+    );
 
     const failedB = await givenAnInvoice(ctx.prisma)
       .forUser(userIdB)
@@ -187,7 +222,7 @@ describe("Invoice integration", () => {
     // Act — user A (sessionCookie from beforeEach) tries to retry B's invoice.
     const patchRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}/${failedB.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Cookie: sessionCookie },
+      headers: withIp({ "Content-Type": "application/json", Cookie: sessionCookie }),
       body: JSON.stringify({ name: "Retry Attempt", amount: 200 }),
     });
 
@@ -199,17 +234,18 @@ describe("Invoice integration", () => {
     // Arrange — register and login user B.
     await fetch(`${ctx.baseUrl}${ApiRoutes.REGISTER}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withIp({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         name: "Other User",
         email: "other@example.com",
-        password: "secret456",
+        password: "secret456789012",
       }),
     });
-    const { cookie: cookieB, userId: userIdB } = await loginAs(
+    const { userId: userIdB, cookie: cookieB } = await loginAs(
       ctx.baseUrl,
       "other@example.com",
-      "secret456",
+      "secret456789012",
+      testIp,
     );
 
     // User B has one invoice; the primary user (A) has none yet.
@@ -217,7 +253,7 @@ describe("Invoice integration", () => {
 
     // Act — user A lists their invoices.
     const listRes = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
-      headers: { Cookie: sessionCookie },
+      headers: withIp({ Cookie: sessionCookie }),
     });
     const { data: invoicesA } = (await listRes.json()) as PaginatedResponse<InvoiceDTO>;
 
@@ -226,7 +262,7 @@ describe("Invoice integration", () => {
 
     // Sanity check — user B sees their own invoice.
     const listResB = await fetch(`${ctx.baseUrl}${ApiRoutes.INVOICES}`, {
-      headers: { Cookie: cookieB },
+      headers: withIp({ Cookie: cookieB }),
     });
     const { data: invoicesB } = (await listResB.json()) as PaginatedResponse<InvoiceDTO>;
     expect(invoicesB).toHaveLength(1);

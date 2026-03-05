@@ -4,15 +4,15 @@ import { Elysia, t } from "elysia";
 import { createLogger, runWithContext } from "@distributed-systems/logger";
 import { ApiRoutes } from "@distributed-systems/shared";
 
-import { markSpanError } from "#shared/utils/span";
 import { requestIdPlugin } from "#shared/plugins/request-id.plugin";
+import { markSpanError } from "#shared/utils/span";
 import { loginUserHandler } from "#users/application/commands/login-user/login-user.handler";
 import { prismaUserRepository } from "#users/infrastructure/repositories/prisma-user.repository";
 
 const logger = createLogger("auth-routes");
 
-const SESSION_MAX_AGE = 7 * 24 * 60 * 60; // 7 days
-const JWT_EXP = "7d";
+const SESSION_MAX_AGE = 8 * 60 * 60; // 8 hours
+const JWT_EXP = "8h";
 
 interface AuthRoutesOptions {
   jwtSecret: string;
@@ -57,7 +57,7 @@ export function authRoutes({ jwtSecret }: AuthRoutesOptions) {
             cookie["session"]!.set({
               value: token,
               httpOnly: true,
-              sameSite: "lax",
+              sameSite: "strict",
               path: "/",
               maxAge: SESSION_MAX_AGE,
             });

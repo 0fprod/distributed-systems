@@ -20,7 +20,9 @@ COPY packages/rabbitmq/package.json   packages/rabbitmq/
 COPY tests/integration/package.json  tests/integration/
 
 # Instala dependencias — solo se re-ejecuta si cambian los manifiestos
-RUN bun install --frozen-lockfile --verbose
+RUN bun install --frozen-lockfile --verbose && \
+    find /app/node_modules/.bun -name "index.js" -path "*/prisma/build/index.js" -exec chmod a+x {} \; && \
+    find /app/node_modules/.bun -name "schema-engine*" -o -name "query-engine*" -o -name "libquery_engine*" | xargs chmod +x 2>/dev/null || true
 
 # Copia el código fuente — no invalida la capa de instalación
 COPY . .

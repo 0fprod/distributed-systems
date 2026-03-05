@@ -3,9 +3,9 @@ import { Elysia, t } from "elysia";
 import { createLogger, runWithContext } from "@distributed-systems/logger";
 import { ApiRoutes } from "@distributed-systems/shared";
 
-import { markSpanError } from "#shared/utils/span";
 import { authPlugin } from "#shared/plugins/auth.plugin";
 import { requestIdPlugin } from "#shared/plugins/request-id.plugin";
+import { markSpanError } from "#shared/utils/span";
 import { registerUserHandler } from "#users/application/commands/register-user/register-user.handler";
 import { prismaUserRepository } from "#users/infrastructure/repositories/prisma-user.repository";
 
@@ -19,6 +19,7 @@ export function userRoutes({ jwtSecret }: UserRoutesOptions) {
   return (
     new Elysia({ name: "user-routes" })
       .use(requestIdPlugin)
+
       // Public: POST /register
       .post(
         ApiRoutes.REGISTER,
@@ -49,7 +50,7 @@ export function userRoutes({ jwtSecret }: UserRoutesOptions) {
           body: t.Object({
             name: t.String({ minLength: 1 }),
             email: t.String({ format: "email" }),
-            password: t.String({ minLength: 6 }),
+            password: t.String({ minLength: 12 }),
           }),
         },
       )

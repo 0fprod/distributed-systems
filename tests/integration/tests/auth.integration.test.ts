@@ -28,13 +28,13 @@ async function registerUser(email: string, password: string) {
 describe("Authentication — POST /login", () => {
   it("sets an HttpOnly session cookie on valid credentials", async () => {
     // Arrange
-    await registerUser("alice@example.com", "secret123");
+    await registerUser("alice@example.com", "secret123456");
 
     // Act
     const res = await fetch(`${ctx.baseUrl}${ApiRoutes.LOGIN}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "alice@example.com", password: "secret123" }),
+      body: JSON.stringify({ email: "alice@example.com", password: "secret123456" }),
     });
 
     // Assert — status
@@ -78,12 +78,12 @@ describe("Authentication — POST /login", () => {
 describe("Authentication — GET /me", () => {
   it("returns the current user when session cookie is valid", async () => {
     // Arrange — register and login to obtain cookie
-    await registerUser("carol@example.com", "secret123");
+    await registerUser("carol@example.com", "secret123456");
 
     const loginRes = await fetch(`${ctx.baseUrl}${ApiRoutes.LOGIN}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "carol@example.com", password: "secret123" }),
+      body: JSON.stringify({ email: "carol@example.com", password: "secret123456" }),
     });
 
     const setCookie = loginRes.headers.get("set-cookie")!;
@@ -113,12 +113,12 @@ describe("Authentication — GET /me", () => {
 describe("Authentication — POST /logout", () => {
   it("clears the session cookie", async () => {
     // Arrange — register and login
-    await registerUser("dave@example.com", "secret123");
+    await registerUser("dave@example.com", "secret123456");
 
     const loginRes = await fetch(`${ctx.baseUrl}${ApiRoutes.LOGIN}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "dave@example.com", password: "secret123" }),
+      body: JSON.stringify({ email: "dave@example.com", password: "secret123456" }),
     });
 
     const setCookie = loginRes.headers.get("set-cookie")!;
@@ -153,12 +153,12 @@ describe("Invoice routes require authentication", () => {
 
   it("returns invoices when session cookie is valid", async () => {
     // Arrange — register and login
-    await registerUser("eve@example.com", "secret123");
+    await registerUser("eve@example.com", "secret123456");
 
     const loginRes = await fetch(`${ctx.baseUrl}${ApiRoutes.LOGIN}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "eve@example.com", password: "secret123" }),
+      body: JSON.stringify({ email: "eve@example.com", password: "secret123456" }),
     });
 
     const setCookie = loginRes.headers.get("set-cookie")!;
