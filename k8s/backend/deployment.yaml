@@ -15,8 +15,10 @@ spec:
     spec:
       containers:
         - name: backend
-          image: distributed-systems-backend:latest
-          imagePullPolicy: Never
+          # Image pushed to OCIR — run `terraform output image_backend` to get the full path
+          # and update this value after first terraform apply.
+          image: ghcr.io/0fprod/distributed-systems/backend:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
           envFrom:
@@ -27,6 +29,20 @@ spec:
           env:
             - name: OTEL_SERVICE_NAME
               value: backend
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             httpGet:
               path: /health
@@ -43,3 +59,8 @@ spec:
             periodSeconds: 15
             timeoutSeconds: 5
             failureThreshold: 3
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      volumes:
+        - name: tmp
+          emptyDir: {}

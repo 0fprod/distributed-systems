@@ -1,0 +1,15 @@
+# Copy this file: cp terraform.tfvars.example terraform.tfvars
+# Fill in all values. terraform.tfvars is gitignored — never commit it.
+
+# ── Civo ──────────────────────────────────────────────────────────────────────
+civo_api_key = ""        # Settings → API Keys → Generate
+civo_region  = "LON1"   # LON1 | NYC1 | FRA1 | PHX1
+
+# ── GHCR ──────────────────────────────────────────────────────────────────────
+github_username = ""    # your GitHub username
+github_pat      = ""    # Settings → Developer settings → PATs → write:packages
+
+# ── Grafana Cloud ─────────────────────────────────────────────────────────────
+grafana_cloud_api_key = ""   # My Account → Security → Access Policies → Create token
+grafana_stack_slug    = ""   # slug shown in your stack URL
+grafana_region        = "eu"

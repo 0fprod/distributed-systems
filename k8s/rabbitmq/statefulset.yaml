@@ -14,6 +14,9 @@ spec:
       labels:
         app: rabbitmq
     spec:
+      securityContext:
+        runAsUser: 999 # rabbitmq user inside the official image
+        fsGroup: 999
       containers:
         - name: rabbitmq
           image: rabbitmq:3-management-alpine
@@ -23,6 +26,24 @@ spec:
               name: amqp
             - containerPort: 15672
               name: management
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: RABBITMQ_PASSWORD
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           readinessProbe:
             exec:
               command:

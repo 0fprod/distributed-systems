@@ -15,8 +15,9 @@ spec:
     spec:
       containers:
         - name: worker
-          image: distributed-systems-worker:latest
-          imagePullPolicy: Never
+          # Image pushed to OCIR — run `terraform output image_worker` to get the full path.
+          image: ghcr.io/0fprod/distributed-systems/worker:latest
+          imagePullPolicy: Always
           envFrom:
             - configMapRef:
                 name: app-config
@@ -25,3 +26,25 @@ spec:
           env:
             - name: OTEL_SERVICE_NAME
               value: worker
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      volumes:
+        - name: tmp
+          emptyDir: {}

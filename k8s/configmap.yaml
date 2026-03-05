@@ -5,5 +5,7 @@ metadata:
   namespace: distributed-systems
 data:
   OTEL_TRACES_EXPORTER: "otlp"
-  OTEL_EXPORTER_OTLP_ENDPOINT: "http://host.docker.internal:4318"
+  # Alloy runs as a DaemonSet in the monitoring namespace and receives OTLP
+  # from all pods, then forwards to Grafana Cloud.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://alloy.monitoring.svc.cluster.local:4318"
   PRISMA_GENERATE_SKIP_AUTOINSTALL: "true"

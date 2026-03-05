@@ -14,27 +14,36 @@ spec:
       labels:
         app: mysql
     spec:
+      securityContext:
+        runAsUser: 999 # mysql user inside the official image
+        fsGroup: 999
       containers:
         - name: mysql
           image: mysql:8.0
           imagePullPolicy: IfNotPresent
           env:
             - name: MYSQL_ROOT_PASSWORD
-              value: root
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: MYSQL_ROOT_PASSWORD
             - name: MYSQL_DATABASE
               value: invoices
           ports:
             - containerPort: 3306
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
           readinessProbe:
             exec:
               command:
-                - mysqladmin
-                - ping
-                - -h
-                - localhost
-                - -u
-                - root
-                - -proot
+                - /bin/sh
+                - -c
+                - "mysqladmin ping -h localhost -u root -p${MYSQL_ROOT_PASSWORD}"
             initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 5
@@ -47,7 +56,7 @@ spec:
         name: mysql-data
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: hostpath
+        storageClassName: civo-volume
         resources:
           requests:
             storage: 1Gi

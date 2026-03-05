@@ -22,6 +22,15 @@ spec:
               name: mysql
             - containerPort: 6032
               name: admin
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
           volumeMounts:
             - name: config
               mountPath: /etc/proxysql.cnf
@@ -33,5 +42,5 @@ spec:
             periodSeconds: 10
       volumes:
         - name: config
-          configMap:
-            name: proxysql-config
+          secret:
+            secretName: proxysql-config-secret

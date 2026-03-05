@@ -1,0 +1,42 @@
+datadir="/var/lib/proxysql"
+
+admin_variables=
+{
+    admin_credentials="admin:admin"
+    mysql_ifaces="0.0.0.0:6032"
+}
+
+mysql_variables=
+{
+    threads=4
+    max_connections=2048
+    interfaces="0.0.0.0:6033"
+    server_version="8.0.27"
+    connect_timeout_server=3000
+    monitor_username="monitor"
+    monitor_password="monitor"
+    monitor_connect_interval=60000
+    monitor_ping_interval=10000
+}
+
+mysql_servers=
+(
+    {
+        address="mysql"
+        port=3306
+        hostgroup=0
+        max_connections=50
+    }
+)
+
+mysql_users=
+(
+    {
+        username="root"
+        password="<MYSQL_ROOT_PASSWORD>"
+        default_hostgroup=0
+        max_connections=2048
+        default_schema="invoices"
+        active=1
+    }
+)
