@@ -300,9 +300,220 @@ Exports `initWorkerOtel()`: creates `NodeTracerProvider` + `BatchSpanProcessor` 
 
 6. **Worker `#shared/*` path differs from backend** — backend: `./src/shared/*.ts`, worker: `./src/modules/shared/*.ts`.
 
-7. **`PRISMA_GENERATE_SKIP_AUTOINSTALL=true`** — required in Docker (oven/bun image has no npm).
+7. **`PRISMA_GENERATE_SKIP_AUTOINSTALL=true`** — set in ConfigMap (runtime only). Do NOT set it as `ENV` in the Dockerfile — it prevents the engine binary download during `bun install`, which breaks `prisma generate` at runtime.
 
 8. **`bun run --filter` does not forward stdin** — use `--cwd` for interactive commands like `prisma migrate dev`.
+
+9. **bun stores packages in `node_modules/.bun/`** — NEVER mount an emptyDir over `/app/node_modules/.bun` in k8s. It shadows all installed packages and everything breaks.
+
+10. **Prisma engine binary lives in `/root/.cache/prisma/`** (baked into image during `bun install`). Do NOT set `HOME=/tmp` in the backend deployment — prisma won't find the engine and will try to download it from internet (which is blocked by network policies).
+
+11. **`readOnlyRootFilesystem: true` is incompatible with Prisma** — prisma generate writes to `src/generated/client/` and touches its engine cache in `/root/.cache/`. Do not enable readOnlyRootFilesystem on the backend without a proper init-container strategy.
+
+---
+
+## Infrastructure (Civo + Terraform)
+
+### Cluster
+
+- Provider: **Civo** (k3s managed, CNI: Flannel)
+- 2 nodes, region: `LON1`
+- Terraform state: `infra/` directory
+- External IP: assigned dynamically per deploy (check `terraform output` or Civo dashboard)
+
+### Terraform apply workflow
+
+```sh
+cd infra/
+terraform init
+terraform apply
+```
+
+Key outputs: kubeconfig, cluster endpoint, Grafana Cloud datasource URLs.
+
+**Known Terraform gotchas:**
+
+- `write_kubeconfig = true` is required on `civo_kubernetes_cluster` — without it the kubeconfig attribute stays empty
+- Grafana stack `region_slug` drifts (API returns `prod-eu-west-6`, config sends `eu`) → add `lifecycle { ignore_changes = [region_slug] }`
+- Grafana access policy `region` must use `grafana_cloud_stack.prod.cluster_slug`, not `var.grafana_region`
+- Alloy helm values must be wrapped in `yamlencode({ alloy = { configMap = { content = templatefile(...) } } })`
+
+### kubectl context
+
+```sh
+civo kubernetes config distributed-systems --save
+kubectl config use-context distributed-systems
+```
+
+---
+
+## Kubernetes
+
+### Namespace
+
+All app workloads: `distributed-systems`
+Monitoring (Alloy, Prometheus, Grafana): `monitoring`
+
+### Manifest structure
+
+```
+k8s/
+├── configmap.yaml               # app-config: OTEL endpoints, PRISMA_GENERATE_SKIP_AUTOINSTALL
+├── sealed-secret.yaml           # app-secret (SealedSecret — safe to commit)
+├── secret.template.yaml         # plain-text template — NEVER commit with real values
+├── network-policies.yaml        # default-deny-all + explicit allow rules
+├── backend/
+│   ├── deployment.yaml
+│   └── service.yaml             # NodePort 30000
+├── frontend/
+│   ├── deployment.yaml
+│   ├── service.yaml             # LoadBalancer → public IP
+│   └── configmap.yaml           # nginx config / API URL
+├── worker/
+│   ├── deployment.yaml
+│   ├── scaledobject.yaml        # KEDA ScaledObject (RabbitMQ trigger)
+│   └── rabbitmq-sealed-secret.yaml  # RABBITMQ_URL for KEDA trigger auth
+├── mysql/
+│   └── statefulset.yaml         # PVC: civo-volume, 1Gi
+├── rabbitmq/
+│   ├── statefulset.yaml
+│   └── service.yaml             # headless (clusterIP: None)
+└── proxysql/
+    ├── deployment.yaml
+    ├── service.yaml
+    └── sealed-proxysql-secret.yaml  # proxysql.cnf content
+```
+
+### Apply all manifests
+
+```sh
+kubectl apply -f k8s/
+kubectl apply -f k8s/backend/
+kubectl apply -f k8s/frontend/
+kubectl apply -f k8s/worker/
+kubectl apply -f k8s/mysql/
+kubectl apply -f k8s/rabbitmq/
+kubectl apply -f k8s/proxysql/
+```
+
+### Services & access
+
+| Service  | Type               | Access                             |
+| -------- | ------------------ | ---------------------------------- |
+| frontend | LoadBalancer       | `http://<EXTERNAL-IP>` (port 80)   |
+| backend  | NodePort           | cluster-internal only (port 30000) |
+| rabbitmq | ClusterIP/headless | `rabbitmq:5672` (internal)         |
+| proxysql | ClusterIP          | `proxysql:6033` (internal)         |
+| mysql    | ClusterIP/headless | `mysql:3306` (internal)            |
+
+### Network policies
+
+`k8s/network-policies.yaml` implements default-deny-all. Every flow needs **both** an ingress rule on the destination pod AND an egress rule on the source pod. Current allowed flows:
+
+- frontend → backend:3000
+- backend → proxysql:6033, rabbitmq:5672, monitoring:4318
+- worker → rabbitmq:5672, proxysql:6033, monitoring:4318
+- proxysql → mysql:3306
+- monitoring namespace → all pods (Prometheus scraping)
+- all pods → kube-dns:53
+
+---
+
+## Secrets Management (Sealed Secrets)
+
+### Controller
+
+- Namespace: `kube-system`
+- Service name: `sealed-secrets` (NOT `sealed-secrets-controller`)
+
+### Seal a secret
+
+```sh
+kubectl create secret generic <name> \
+  --namespace distributed-systems \
+  --from-literal=KEY="value" \
+  --dry-run=client -o yaml | \
+  kubeseal --controller-namespace kube-system \
+           --controller-name sealed-secrets \
+           --format yaml > k8s/sealed-secret.yaml
+```
+
+### Rotate a secret (full cycle)
+
+```sh
+# 1. Regenerate sealed-secret.yaml (command above)
+# 2. Delete existing SealedSecret + Secret
+kubectl delete sealedsecret <name> -n distributed-systems
+kubectl delete secret <name> -n distributed-systems   # may already be gone
+# 3. Apply new sealed secret
+kubectl apply -f k8s/sealed-secret.yaml
+# 4. Wait ~5s for controller to unseal, then restart dependents
+kubectl rollout restart deployment/backend deployment/worker statefulset/rabbitmq -n distributed-systems
+```
+
+### app-secret keys
+
+| Key                   | Value (dev/k8s)                               |
+| --------------------- | --------------------------------------------- |
+| `DATABASE_URL`        | `mysql://root:root@proxysql:6033/invoices`    |
+| `JWT_SECRET`          | random string (use `openssl rand -base64 32`) |
+| `MYSQL_ROOT_PASSWORD` | `root`                                        |
+| `RABBITMQ_URL`        | `amqp://admin:supersecret@rabbitmq:5672`      |
+| `RABBITMQ_USER`       | `admin`                                       |
+| `RABBITMQ_PASSWORD`   | `supersecret`                                 |
+
+**RabbitMQ:** never use `guest` — blocked for non-localhost connections by design.
+
+**MySQL PVC gotcha:** if `MYSQL_ROOT_PASSWORD` changes, the existing PVC keeps the old password. Must delete PVC + StatefulSet and recreate:
+
+```sh
+kubectl delete statefulset/mysql -n distributed-systems
+kubectl delete pvc mysql-data-mysql-0 -n distributed-systems
+kubectl apply -f k8s/mysql/statefulset.yaml
+```
+
+---
+
+## Docker Build & Push (GHCR)
+
+Images: `ghcr.io/0fprod/distributed-systems/{backend,worker,frontend}:latest`
+
+Always build for `linux/amd64` (Civo nodes are x86_64):
+
+```sh
+# Backend
+docker build --platform linux/amd64 \
+  -t ghcr.io/0fprod/distributed-systems/backend:latest \
+  -f apps/backend/Dockerfile .
+docker push ghcr.io/0fprod/distributed-systems/backend:latest
+kubectl rollout restart deployment/backend -n distributed-systems
+
+# Frontend (builder runs native via $BUILDPLATFORM to avoid QEMU SIGILL)
+docker build --platform linux/amd64 \
+  -t ghcr.io/0fprod/distributed-systems/frontend:latest \
+  -f apps/frontend/Dockerfile .
+docker push ghcr.io/0fprod/distributed-systems/frontend:latest
+kubectl rollout restart deployment/frontend -n distributed-systems
+
+# Worker
+docker build --platform linux/amd64 \
+  -t ghcr.io/0fprod/distributed-systems/worker:latest \
+  -f apps/worker/Dockerfile .
+docker push ghcr.io/0fprod/distributed-systems/worker:latest
+kubectl rollout restart deployment/worker -n distributed-systems
+```
+
+**Frontend Dockerfile:** uses `FROM --platform=$BUILDPLATFORM oven/bun:1.3.6-alpine AS builder` — builder runs native ARM64 on M2 to avoid bun SIGILL under QEMU. The nginx runtime stage inherits `linux/amd64` from the build command.
+
+### Cleanup stale ReplicaSets
+
+Each rollout creates a new ReplicaSet. Clean up old ones (0 desired replicas):
+
+```sh
+kubectl get rs -n distributed-systems -l app=backend --no-headers \
+  | awk '$2=="0" {print $1}' \
+  | xargs -r kubectl delete rs -n distributed-systems
+```
 
 ---
 
